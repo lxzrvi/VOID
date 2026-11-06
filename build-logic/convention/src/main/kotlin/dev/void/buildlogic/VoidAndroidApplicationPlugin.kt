@@ -1,9 +1,11 @@
 package dev.void.buildlogic
 
 import com.android.build.api.dsl.ApplicationExtension
+import org.gradle.api.JavaVersion
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.artifacts.VersionCatalogsExtension
+import org.gradle.kotlin.dsl.apply
 import org.gradle.kotlin.dsl.configure
 import org.gradle.kotlin.dsl.getByType
 
@@ -21,18 +23,18 @@ class VoidAndroidApplicationPlugin : Plugin<Project> {
             apply(plugin = "com.android.application")
 
             val libs = extensions.getByType<VersionCatalogsExtension>().named("libs")
-            fun version(key: String) = libs.findVersion(key).get().requiredVersion
+            fun catalogVersion(key: String) = libs.findVersion(key).get().requiredVersion
 
             extensions.configure<ApplicationExtension> {
                 namespace = "dev.void.app"
-                compileSdk = version("android-compileSdk").toInt()
+                compileSdk = catalogVersion("android-compileSdk").toInt()
 
                 defaultConfig {
                     applicationId = "dev.void.app"
-                    minSdk = version("android-minSdk").toInt()
-                    targetSdk = version("android-targetSdk").toInt()
-                    versionCode = version("voidVersionCode").toInt()
-                    versionName = version("voidVersionName")
+                    minSdk = catalogVersion("android-minSdk").toInt()
+                    targetSdk = catalogVersion("android-targetSdk").toInt()
+                    versionCode = catalogVersion("voidVersionCode").toInt()
+                    versionName = catalogVersion("voidVersionName")
                 }
 
                 buildTypes {
