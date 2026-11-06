@@ -171,7 +171,7 @@ fun VoidSearchIsland(
                 .height(IslandHeight)
                 .shadow(elevation = lerpDp(0.dp, 6.dp, progress), shape = IslandShape, clip = false)
                 .clip(IslandShape)
-                .background(lerpColor(VoidRed, MaterialTheme.colorScheme.surface, progress))
+                .background(lerpColor(VoidRed, MaterialTheme.colorScheme.surfaceVariant, progress))
                 .border(
                     width = 1.dp,
                     color = MaterialTheme.colorScheme.outline.copy(alpha = 0.7f * progress),
