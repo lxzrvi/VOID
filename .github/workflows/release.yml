@@ -37,6 +37,9 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
 
+      - name: Check drawables are VectorDrawables
+        run: python3 tools/check_icons.py
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 

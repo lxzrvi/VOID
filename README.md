@@ -28,7 +28,7 @@ re-flows mid-animation.
 
 **[Download the latest APK](https://github.com/lxzrvi/VOID/releases/latest)** →
 `VOID-<version>.apk`, open it on the device and allow "install unknown apps" for
-the browser / file manager. Latest: **0.1.0** (`dev.voidapp`, minSdk 26, ~1.3 MB).
+the browser / file manager. Latest: **0.1.1** (`dev.voidapp`, minSdk 26, ~1.3 MB).
 
 Every push to `main` publishes a new release automatically, so there is nothing
 to build locally.
@@ -42,6 +42,12 @@ to build locally.
   resting circle.
 * The `c2pa` metadata blob and the oversized `width`/`height` were stripped from
   both files, so they are ~1.9 KB each instead of ~9.7 KB.
+* Android cannot draw raw SVG. `tools/make_icons.py` converts both SVGs into real
+  VectorDrawables (`<vector android:viewportWidth=…>`) in `res/drawable`, and
+  `tools/check_icons.py` (run in CI before every Gradle build) fails the build if
+  a drawable is a raw `<svg>`, has no viewport, or draws nothing. Shipping raw SVG
+  in 0.1.0 is what crashed on launch with
+  `<VectorGraphic> tag requires viewportWidth > 0`.
 * UI glyphs (arrows, three dots, close) are Lucide icons. Their paths are
   inlined in `ui/components/Lucide.kt` (copied 1:1 from the
   [lucide-compose](https://github.com/thelacspace/lucide-compose) sources) and
@@ -65,9 +71,9 @@ app/                          single application module (package dev.voidapp)
     ui/components/Lucide.kt       inlined Lucide glyphs (arrows, ellipsis, x)
     ui/theme/Theme.kt         brand red + light/dark schemes (follows the system)
   src/main/res/
-    drawable/void_icon.xml            launcher art (full mark)
-    drawable/void_inner_icon.xml      inner mark
-    drawable/ic_launcher_foreground.xml
+    drawable/void_icon.xml            launcher art (full mark) - generated
+    drawable/void_inner_icon.xml      inner mark - generated
+    drawable/ic_launcher_foreground.xml  adaptive foreground - generated
     mipmap-anydpi-v26/ic_launcher*.xml
 build-logic/                  convention plugins (void.android.application / .compose)
 gradle/libs.versions.toml     every version, including the app version
