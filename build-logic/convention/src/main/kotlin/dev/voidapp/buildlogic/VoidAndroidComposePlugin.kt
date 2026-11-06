@@ -32,9 +32,6 @@ class VoidAndroidComposePlugin : Plugin<Project> {
 
                 add("implementation", library("androidx-activity-compose"))
                 add("implementation", library("androidx-lifecycle-runtime"))
-
-                // Lucide icons as ImageVectors (io.github.thelacspace:lucide-compose)
-                add("implementation", library("lucide-compose"))
             }
         }
     }

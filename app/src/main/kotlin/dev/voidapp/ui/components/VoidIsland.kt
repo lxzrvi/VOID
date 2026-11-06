@@ -40,7 +40,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -72,13 +71,6 @@ import androidx.compose.ui.unit.lerp as lerpDp
 import androidx.compose.ui.unit.sp
 import dev.voidapp.R
 import dev.voidapp.ui.theme.VoidRed
-import io.github.thelacspace.lucide.LocalLucideIconConfig
-import io.github.thelacspace.lucide.LucideIconConfig
-import io.github.thelacspace.lucide.LucideIcons
-import io.github.thelacspace.lucide.all.ArrowLeft
-import io.github.thelacspace.lucide.all.ArrowRight
-import io.github.thelacspace.lucide.all.Ellipsis
-import io.github.thelacspace.lucide.all.X
 
 /** Diameter of the resting circle, and the height of the grown island. */
 private val IslandHeight = 56.dp
@@ -150,7 +142,10 @@ fun VoidSearchIsland(
     ) {
         val progress = fraction.value
         val collapsed = progress < 0.5f
-        val islandWidth = lerpDp(IslandHeight, maxWidth, progress)
+        // Captured here: maxWidth belongs to the BoxWithConstraints scope, and the
+        // island content below runs inside Box/Row scopes that would shadow it.
+        val fullWidth = maxWidth
+        val islandWidth = lerpDp(IslandHeight, fullWidth, progress)
 
         // Tapping the blank page collapses the island again.
         if (!collapsed) {
@@ -196,7 +191,7 @@ fun VoidSearchIsland(
             // nothing re-flows while the island grows.
             Row(
                 modifier = Modifier
-                    .requiredWidth(maxWidth)
+                    .requiredWidth(fullWidth)
                     .fillMaxHeight()
                     .padding(start = 22.dp, end = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -312,13 +307,13 @@ private fun IslandPill(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         PillIconButton(
-            icon = LucideIcons.All.ArrowLeft,
+            icon = Lucide.ArrowLeft,
             label = stringResource(R.string.action_previous),
             onClick = onPrevious,
         )
         CounterBadge(text = counter)
         PillIconButton(
-            icon = LucideIcons.All.ArrowRight,
+            icon = Lucide.ArrowRight,
             label = stringResource(R.string.action_next),
             onClick = onNext,
         )
@@ -429,8 +424,8 @@ private fun GlyphButton(
             label = "glyph",
         ) { state ->
             val icon = when (state) {
-                IslandGlyph.Dots -> LucideIcons.All.Ellipsis
-                IslandGlyph.Close -> LucideIcons.All.X
+                IslandGlyph.Dots -> Lucide.Ellipsis
+                IslandGlyph.Close -> Lucide.X
             }
             Icon(
                 imageVector = icon,
@@ -454,17 +449,5 @@ fun InnerMark(modifier: Modifier = Modifier) {
         contentDescription = null,
         colorFilter = ColorFilter.tint(Color.White),
         modifier = modifier,
-    )
-}
-
-/**
- * Makes every Lucide glyph inside [content] bold: the library defaults to a 2f
- * stroke, 2.5f reads as bold at 17-18dp.
- */
-@Composable
-fun BoldLucideIcons(content: @Composable () -> Unit) {
-    CompositionLocalProvider(
-        LocalLucideIconConfig provides LucideIconConfig(strokeWidth = 2.5f),
-        content = content,
     )
 }

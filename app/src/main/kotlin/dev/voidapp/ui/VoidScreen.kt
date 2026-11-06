@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import dev.voidapp.ui.components.BoldLucideIcons
 import dev.voidapp.ui.components.VoidSearchIsland
 
 /** Placeholder result set so the counter has something to count. */
@@ -18,13 +17,11 @@ private val Results = listOf("Void", "Vision", "Vector", "Vortex", "Vertex", "Va
  */
 @Composable
 fun VoidScreen(modifier: Modifier = Modifier) {
-    BoldLucideIcons {
-        Box(
-            modifier = modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background),
-        ) {
-            VoidSearchIsland(results = Results)
-        }
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background),
+    ) {
+        VoidSearchIsland(results = Results)
     }
 }

@@ -42,19 +42,27 @@ to build locally.
   resting circle.
 * The `c2pa` metadata blob and the oversized `width`/`height` were stripped from
   both files, so they are ~1.9 KB each instead of ~9.7 KB.
-* UI glyphs (arrows, three dots, close) come from
-  `io.github.thelacspace:lucide-compose`. They are drawn with a 2.5f stroke
-  (`BoldLucideIcons`) instead of Lucide's default 2f, which is what the "bold"
-  look in the pill uses.
+* UI glyphs (arrows, three dots, close) are Lucide icons. Their paths are
+  inlined in `ui/components/Lucide.kt` (copied 1:1 from the
+  [lucide-compose](https://github.com/thelacspace/lucide-compose) sources) and
+  drawn with a 2.5f stroke instead of Lucide's default 2f — that is the "bold"
+  look in the pill.
+  Why not the Maven artifact: `io.github.thelacspace:lucide-compose:1.16.0` on
+  Maven Central only ships the generator's test icons (Triangle,
+  TriangleAlert, TriangleDashed, Trophy) — the actual icon set is missing, so
+  `LucideIcons.All.ArrowLeft` does not exist at compile time. Swap the `by lazy`
+  bodies in `Lucide.kt` for the library's composable properties once a full
+  release is published; call sites don't change.
 
 ## Project layout
 
 ```
-app/                          single application module
+app/                          single application module (package dev.voidapp)
   src/main/kotlin/dev/voidapp/
     MainActivity.kt           edge-to-edge host
     ui/VoidScreen.kt          the one screen: blank surface + island
     ui/components/VoidIsland.kt   the circle → island animation, search field, pill
+    ui/components/Lucide.kt       inlined Lucide glyphs (arrows, ellipsis, x)
     ui/theme/Theme.kt         brand red + light/dark schemes (follows the system)
   src/main/res/
     drawable/void_icon.xml            launcher art (full mark)
@@ -76,7 +84,7 @@ icon/                         original SVG sources
 | Compose BOM | 2026.09.00 |
 | compileSdk / targetSdk | 37 |
 | minSdk | 26 |
-| lucide-compose | 1.16.0 |
+| Lucide glyphs | inlined from lucide-compose 1.16.0 |
 
 AGP 9 compiles Kotlin itself and pins that compiler to the KGP version it ships
 with. The root `build.gradle.kts` puts the project's KGP on the build classpath
