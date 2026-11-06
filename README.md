@@ -71,7 +71,7 @@ icon/                         original SVG sources
 | Tool | Version |
 | --- | --- |
 | Gradle | 9.7.1 |
-| AGP | 9.6.0 (`com.android.application`, built-in Kotlin) |
+| AGP | 9.5.1 (`com.android.application`, built-in Kotlin) |
 | Kotlin | 2.3.21 |
 | Compose BOM | 2026.09.00 |
 | compileSdk / targetSdk | 37 |

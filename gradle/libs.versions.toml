@@ -4,7 +4,7 @@ voidVersionCode = "1"
 voidVersionName = "0.1.0"
 
 # ---- Toolchain ----
-agp = "9.6.0"
+agp = "9.5.1"
 kotlin = "2.3.21"
 
 # ---- Android SDK ----
