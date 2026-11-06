@@ -28,7 +28,7 @@ re-flows mid-animation.
 
 **[Download the latest APK](https://github.com/lxzrvi/VOID/releases/latest)** →
 `VOID-<version>.apk`, open it on the device and allow "install unknown apps" for
-the browser / file manager. Latest: **0.1.1** (`dev.voidapp`, minSdk 26, ~1.3 MB).
+the browser / file manager. Latest: **0.1.3** (`dev.voidapp`, minSdk 26, ~1.3 MB).
 
 Every push to `main` publishes a new release automatically, so there is nothing
 to build locally.

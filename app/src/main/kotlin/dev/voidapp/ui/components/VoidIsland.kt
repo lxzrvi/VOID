@@ -3,8 +3,8 @@ package dev.voidapp.ui.components
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -19,6 +19,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -42,6 +43,7 @@ import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -50,15 +52,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.lerp as lerpColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.Role
@@ -72,8 +74,11 @@ import androidx.compose.ui.unit.sp
 import dev.voidapp.R
 import dev.voidapp.ui.theme.VoidRed
 
-/** Diameter of the resting circle, and the height of the grown island. */
+/** Diameter of the resting circle, and the height of the grown bar. */
 private val IslandHeight = 56.dp
+
+/** Margin of the circle from the bottom-right corner of the screen. */
+private val EdgeMargin = 16.dp
 private val IslandShape = RoundedCornerShape(IslandHeight / 2)
 private val PillShape = RoundedCornerShape(20.dp)
 private val CounterShape = RoundedCornerShape(8.dp)
@@ -82,11 +87,15 @@ private val CounterShape = RoundedCornerShape(8.dp)
 private enum class IslandGlyph { Dots, Close }
 
 /**
- * The whole app: a blank page with one floating circle in the bottom-right
- * corner. Tapping the circle grows it smoothly to the full width; the grown
- * island holds a search field on the left (flexible width) and a pill pinned to
- * the right with back / next arrows, a "current/total" counter and the glyph
- * button where the inner icon turns into three dots.
+ * The whole app.
+ *
+ * Resting: a blank page with one red circle pinned to the **bottom-right**
+ * corner, showing the VOID inner mark.
+ *
+ * Tapping the circle grows it smoothly to the full width. The grown bar holds a
+ * search field on the left (flexible width) and a pill on the right with
+ * back / next arrows, a "current/total" counter and the glyph button where the
+ * inner icon turns into three dots.
  */
 @Composable
 fun VoidSearchIsland(
@@ -95,102 +104,108 @@ fun VoidSearchIsland(
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
-    var index by rememberSaveable { mutableStateOf(0) }
+    var index by rememberSaveable { mutableIntStateOf(0) }
     var glyph by rememberSaveable { mutableStateOf(IslandGlyph.Dots) }
+
+    // 0f = resting circle, 1f = full-width bar. One value drives the width, the
+    // colour, the shadow and the content cross-fade, so they always move together.
+    val progress by animateFloatAsState(
+        targetValue = if (expanded) 1f else 0f,
+        animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow),
+        label = "islandProgress",
+    )
 
     val filtered = remember(results, query) {
         if (query.isBlank()) results else results.filter { it.contains(query, ignoreCase = true) }
     }
     val total = filtered.size
 
-    // Keep the selection inside the current result set.
     LaunchedEffect(total) {
         if (index > total - 1) index = (total - 1).coerceAtLeast(0)
     }
 
     val focusManager = LocalFocusManager.current
-    val focusRequester = remember { FocusRequester() }
-
-    // 0f = resting circle, 1f = full-width island. A single Animatable drives
-    // width, colour, shadow and the content cross-fade, so everything moves
-    // together in one smooth spring.
-    val fraction = remember { Animatable(if (expanded) 1f else 0f) }
-    LaunchedEffect(expanded) {
-        fraction.animateTo(
-            targetValue = if (expanded) 1f else 0f,
-            animationSpec = spring(
-                dampingRatio = 0.9f,
-                stiffness = Spring.StiffnessMediumLow,
-            ),
-        )
-    }
+    val haptics = LocalHapticFeedback.current
 
     LaunchedEffect(expanded) {
         glyph = IslandGlyph.Dots
-        // Opening the island never steals focus: no keyboard until the user taps
-        // the field. Closing it just drops focus so the keyboard goes away.
+        // Opening never steals focus: the bar just grows. The keyboard appears
+        // when the search field itself is tapped.
         if (!expanded) focusManager.clearFocus()
     }
 
     BackHandler(enabled = expanded) { expanded = false }
+
+    val colors = MaterialTheme.colorScheme
 
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
             .systemBarsPadding()
             .imePadding()
-            .padding(horizontal = 16.dp, vertical = 20.dp),
-        contentAlignment = Alignment.BottomEnd,
+            .padding(horizontal = EdgeMargin, vertical = EdgeMargin),
     ) {
-        val progress = fraction.value
-        val collapsed = progress < 0.5f
-        // Captured here: maxWidth belongs to the BoxWithConstraints scope, and the
-        // island content below runs inside Box/Row scopes that would shadow it.
+        // maxWidth belongs to this scope; the island's inner Box/Row lambdas
+        // would otherwise shadow it.
         val fullWidth = maxWidth
         val islandWidth = lerpDp(IslandHeight, fullWidth, progress)
+        val collapsed = progress < 0.5f
 
-        // Tapping the blank page collapses the island again.
-        if (!collapsed) {
+        // Tapping the blank page collapses the bar again.
+        if (expanded) {
             Box(
                 modifier = Modifier
-                    .matchParentSize()
+                    .fillMaxSize()
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClickLabel = stringResource(R.string.action_close_search),
-                    ) { expanded = false },
+                    ) {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        expanded = false
+                    },
             )
         }
 
         Box(
             modifier = Modifier
+                .align(Alignment.BottomEnd)          // bottom-right corner
                 .width(islandWidth)
                 .height(IslandHeight)
-                .shadow(elevation = lerpDp(0.dp, 6.dp, progress), shape = IslandShape, clip = false)
+                .shadow(
+                    elevation = lerpDp(0.dp, 8.dp, progress),
+                    shape = IslandShape,
+                    clip = false,
+                )
                 .clip(IslandShape)
-                .background(lerpColor(VoidRed, MaterialTheme.colorScheme.surfaceContainerHigh, progress))
+                .background(
+                    lerpColor(VoidRed, colors.surfaceContainerHigh, progress),
+                )
                 .border(
                     width = 1.dp,
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.9f * progress),
+                    color = lerpColor(Color.Transparent, colors.outline, progress),
                     shape = IslandShape,
                 )
                 .then(
                     if (collapsed) {
                         Modifier.clickable(
                             interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
+                            indication = ripple(bounded = true, color = Color.White),
                             role = Role.Button,
                             onClickLabel = stringResource(R.string.action_open_search),
-                        ) { expanded = true }
+                        ) {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            expanded = true
+                        }
                     } else {
                         Modifier
                     },
                 ),
             contentAlignment = Alignment.CenterEnd,
         ) {
-            // The grown content is laid out at the final width and revealed by
-            // the widening clip, so the pill stays pinned to the right edge and
-            // nothing re-flows while the island grows.
+            // Grown content is laid out at the final width and revealed by the
+            // widening clip, so the pill stays pinned to the right edge and
+            // nothing re-flows while the bar grows.
             Row(
                 modifier = Modifier
                     .requiredWidth(fullWidth)
@@ -203,8 +218,7 @@ fun VoidSearchIsland(
                     onQueryChange = { query = it },
                     modifier = Modifier
                         .weight(1f)
-                        .fillMaxHeight()
-                        .focusRequester(focusRequester),
+                        .fillMaxHeight(),
                 )
                 Spacer(Modifier.width(8.dp))
                 IslandPill(
@@ -217,11 +231,7 @@ fun VoidSearchIsland(
                     onPrevious = { if (total > 0) index = (index - 1 + total) % total },
                     onNext = { if (total > 0) index = (index + 1) % total },
                     onGlyphClick = {
-                        if (glyph == IslandGlyph.Dots) {
-                            glyph = IslandGlyph.Close
-                        } else {
-                            expanded = false
-                        }
+                        if (glyph == IslandGlyph.Dots) glyph = IslandGlyph.Close else expanded = false
                     },
                 )
             }
@@ -429,12 +439,14 @@ private fun GlyphButton(
                 IslandGlyph.Dots -> Lucide.Ellipsis
                 IslandGlyph.Close -> Lucide.X
             }
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = colors.onSurface,
-                modifier = Modifier.size(18.dp),
-            )
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = label,
+                    tint = colors.onSurface,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
         }
     }
 }
