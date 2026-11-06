@@ -40,6 +40,10 @@ jobs:
       - name: Check drawables are VectorDrawables
         run: python3 tools/check_icons.py
 
+      # Belt and braces: the wrapper must be executable on the runner.
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
