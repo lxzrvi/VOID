@@ -33,7 +33,8 @@ def phone(x, y, label, grown, dark):
     ink = "#FFFFFF" if dark else "#000000"
     muted = "#9A9A9A" if dark else "#5A5A5A"
     outline = "#2A2A2A" if dark else "#D8D8D8"
-    surf_var = "#141414" if dark else "#F2F2F2"
+    surf_var = "#121216" if dark else "#F6F6F8"
+    bar = "#1C1C22" if dark else "#EDEDF1"
     W, H = 420, 160
     out = ['<g><rect x="%s" y="%s" width="%s" height="%s" rx="26" fill="%s" stroke="%s"/>'
            % (x, y, W, H, bg, outline)]
@@ -43,12 +44,12 @@ def phone(x, y, label, grown, dark):
     if not grown:
         out.append('<rect x="%s" y="%s" width="56" height="56" rx="28" fill="#C10520"/>'
                    % (x + W - 18 - 56, iy))
-        out.append(mark_svg(x + W - 18 - 28, iy + 28, 24))
+        out.append(mark_svg(x + W - 18 - 28, iy + 28, 21))
     else:
         ix = x + 16
         iw = W - 32
         out.append('<rect x="%s" y="%s" width="%s" height="56" rx="28" fill="%s" stroke="%s"/>'
-                   % (ix, iy, iw, surf_var, outline))
+                   % (ix, iy, iw, bar, outline))
         out.append('<text x="%s" y="%s" font-family="Inter,Segoe UI,sans-serif" font-size="15" '
                    'font-weight="500" fill="%s">Search</text>' % (ix + 22, iy + 34, muted))
         pw, ph = 176, 40
@@ -75,7 +76,7 @@ parts = [
     'fill="#ffffff">VOID - circle to island</text>',
     '<text x="40" y="62" font-family="Inter,Segoe UI,sans-serif" font-size="13" fill="#8a8a8a">'
     'Ek blank page, bottom-right me circle. Tap se woh smoothly left tak grow hota hai.</text>',
-    phone(40, 100, "REST | light - 56dp circle + inner mark", False, False),
+    phone(40, 100, "REST | light - circle pinned bottom-right", False, False),
     phone(500, 100, "GROWN | light - search + pill (arrows, 1/9, dots)", True, False),
     phone(40, 310, "REST | dark", False, True),
     phone(500, 310, "GROWN | dark", True, True),
