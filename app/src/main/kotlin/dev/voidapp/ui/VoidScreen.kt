@@ -1,4 +1,4 @@
-package dev.void.app.ui
+package dev.voidapp.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -6,8 +6,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import dev.void.app.ui.components.BoldLucideIcons
-import dev.void.app.ui.components.VoidSearchIsland
+import dev.voidapp.ui.components.BoldLucideIcons
+import dev.voidapp.ui.components.VoidSearchIsland
 
 /** Placeholder result set so the counter has something to count. */
 private val Results = listOf("Void", "Vision", "Vector", "Vortex", "Vertex", "Valley", "Vault", "Voyage", "Verve")

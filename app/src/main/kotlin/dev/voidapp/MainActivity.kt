@@ -1,4 +1,4 @@
-package dev.void.app
+package dev.voidapp
 
 import android.graphics.Color
 import android.os.Bundle
@@ -6,8 +6,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import dev.void.app.ui.VoidScreen
-import dev.void.app.ui.theme.VoidTheme
+import dev.voidapp.ui.VoidScreen
+import dev.voidapp.ui.theme.VoidTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

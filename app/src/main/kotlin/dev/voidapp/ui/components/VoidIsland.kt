@@ -1,4 +1,4 @@
-package dev.void.app.ui.components
+package dev.voidapp.ui.components
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -70,8 +70,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp as lerpDp
 import androidx.compose.ui.unit.sp
-import dev.void.app.R
-import dev.void.app.ui.theme.VoidRed
+import dev.voidapp.R
+import dev.voidapp.ui.theme.VoidRed
 import io.github.thelacspace.lucide.LocalLucideIconConfig
 import io.github.thelacspace.lucide.LucideIconConfig
 import io.github.thelacspace.lucide.LucideIcons

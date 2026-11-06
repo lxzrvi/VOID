@@ -51,5 +51,5 @@ kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "ko
 kotlin-gradlePlugin = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 
 # Plugins are defined inside build-logic
-void-android-application = { id = "void.android.application" }
-void-android-compose = { id = "void.android.compose" }
+voidapp-android-application = { id = "voidapp.android.application" }
+voidapp-android-compose = { id = "voidapp.android.compose" }

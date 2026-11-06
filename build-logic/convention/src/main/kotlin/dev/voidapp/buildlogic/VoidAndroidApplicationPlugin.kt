@@ -1,4 +1,4 @@
-package dev.void.buildlogic
+package dev.voidapp.buildlogic
 
 import com.android.build.api.dsl.ApplicationExtension
 import org.gradle.api.JavaVersion
@@ -26,11 +26,11 @@ class VoidAndroidApplicationPlugin : Plugin<Project> {
             fun catalogVersion(key: String) = libs.findVersion(key).get().requiredVersion
 
             extensions.configure<ApplicationExtension> {
-                namespace = "dev.void.app"
+                namespace = "dev.voidapp"
                 compileSdk = catalogVersion("android-compileSdk").toInt()
 
                 defaultConfig {
-                    applicationId = "dev.void.app"
+                    applicationId = "dev.voidapp"
                     minSdk = catalogVersion("android-minSdk").toInt()
                     targetSdk = catalogVersion("android-targetSdk").toInt()
                     versionCode = catalogVersion("voidVersionCode").toInt()

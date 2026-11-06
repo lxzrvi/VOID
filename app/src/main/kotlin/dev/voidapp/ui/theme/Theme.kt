@@ -1,4 +1,4 @@
-package dev.void.app.ui.theme
+package dev.voidapp.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme

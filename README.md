@@ -51,7 +51,7 @@ to build locally.
 
 ```
 app/                          single application module
-  src/main/kotlin/dev/void/app/
+  src/main/kotlin/dev/voidapp/
     MainActivity.kt           edge-to-edge host
     ui/VoidScreen.kt          the one screen: blank surface + island
     ui/components/VoidIsland.kt   the circle → island animation, search field, pill

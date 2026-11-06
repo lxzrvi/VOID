@@ -4,7 +4,7 @@ plugins {
     `kotlin-dsl`
 }
 
-group = "dev.void.buildlogic"
+group = "dev.voidapp.buildlogic"
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
@@ -26,12 +26,12 @@ dependencies {
 gradlePlugin {
     plugins {
         register("androidApplication") {
-            id = "void.android.application"
-            implementationClass = "dev.void.buildlogic.VoidAndroidApplicationPlugin"
+            id = "voidapp.android.application"
+            implementationClass = "dev.voidapp.buildlogic.VoidAndroidApplicationPlugin"
         }
         register("androidCompose") {
-            id = "void.android.compose"
-            implementationClass = "dev.void.buildlogic.VoidAndroidComposePlugin"
+            id = "voidapp.android.compose"
+            implementationClass = "dev.voidapp.buildlogic.VoidAndroidComposePlugin"
         }
     }
 }

@@ -1,4 +1,4 @@
-package dev.void.buildlogic
+package dev.voidapp.buildlogic
 
 import org.gradle.api.Plugin
 import org.gradle.api.Project
