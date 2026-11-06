@@ -13,13 +13,18 @@ val VoidRed = Color(0xFFC10520)
 private val LightColors = lightColorScheme(
     primary = VoidRed,
     onPrimary = Color.White,
+    // The page stays blank white; the grown island is the only raised surface,
+    // so it gets a light grey container + a hairline border to read against it.
     background = Color.White,
     onBackground = Color.Black,
     surface = Color.White,
     onSurface = Color.Black,
-    surfaceVariant = Color(0xFFF2F2F2),
-    onSurfaceVariant = Color(0xFF5A5A5A),
-    outline = Color(0xFFD8D8D8),
+    surfaceVariant = Color(0xFFEFEFF2),
+    onSurfaceVariant = Color(0xFF5C5C66),
+    surfaceContainer = Color(0xFFF6F6F8),
+    surfaceContainerHigh = Color(0xFFEDEDF1),
+    surfaceContainerHighest = Color(0xFFE4E4EA),
+    outline = Color(0xFFD3D3DA),
 )
 
 private val DarkColors = darkColorScheme(
@@ -29,9 +34,12 @@ private val DarkColors = darkColorScheme(
     onBackground = Color.White,
     surface = Color.Black,
     onSurface = Color.White,
-    surfaceVariant = Color(0xFF141414),
-    onSurfaceVariant = Color(0xFF9A9A9A),
-    outline = Color(0xFF2A2A2A),
+    surfaceVariant = Color(0xFF1A1A1F),
+    onSurfaceVariant = Color(0xFF9A9AA5),
+    surfaceContainer = Color(0xFF121216),
+    surfaceContainerHigh = Color(0xFF1C1C22),
+    surfaceContainerHighest = Color(0xFF26262E),
+    outline = Color(0xFF3A3A44),
 )
 
 /**

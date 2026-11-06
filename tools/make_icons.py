@@ -57,7 +57,7 @@ def write(name, body, src):
 red = color_of(ICON)
 write(
     "void_icon",
-    VECTOR_OPEN.format(w="108", h="108", vw=FULL_SIDE, vh=FULL_SIDE)+
+    VECTOR_OPEN.format(w="48", h="48", vw=FULL_SIDE, vh=FULL_SIDE)+
     f'    <path\n        android:fillColor="{red}"\n'
     f'        android:pathData="M0,0h{FULL_SIDE}v{FULL_SIDE}h-{FULL_SIDE}z" />\n'
     f'    <path\n        android:fillColor="#ffffffff"\n'
@@ -71,7 +71,7 @@ write(
 # so the mark fills the viewport exactly like it does in the SVG.
 write(
     "void_inner_icon",
-    VECTOR_OPEN.format(w="24", h="24", vw=INNER_SIDE, vh=INNER_SIDE)+
+    VECTOR_OPEN.format(w="20", h="20", vw=INNER_SIDE, vh=INNER_SIDE)+
     "    <group android:translateX=\"-409\" android:translateY=\"-409\">\n"
     f'        <path\n            android:fillColor="#ffffffff"\n'
     f'            android:pathData="{mark_path()}" />\n'
@@ -84,8 +84,9 @@ write(
 # A <group> cannot carry two android:translateX attributes, so the scale-about-
 # centre transform is nested: translate(+c) -> scale(s) -> translate(-c).
 # The mark's art is centred on (1309, 1309) in the 2618 canvas; 0.78 keeps it
-# comfortably inside the 72dp visible mask of the 108dp adaptive icon.
-SCALE = 0.78
+# comfortably inside the 72dp visible mask of the 108dp adaptive icon
+# (0.62 leaves a generous margin, which reads as a smaller, calmer icon).
+SCALE = 0.62
 C = FULL_SIDE / 2
 write(
     "ic_launcher_foreground",

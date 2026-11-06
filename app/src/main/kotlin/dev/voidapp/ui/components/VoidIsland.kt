@@ -127,7 +127,9 @@ fun VoidSearchIsland(
 
     LaunchedEffect(expanded) {
         glyph = IslandGlyph.Dots
-        if (expanded) focusRequester.requestFocus() else focusManager.clearFocus()
+        // Opening the island never steals focus: no keyboard until the user taps
+        // the field. Closing it just drops focus so the keyboard goes away.
+        if (!expanded) focusManager.clearFocus()
     }
 
     BackHandler(enabled = expanded) { expanded = false }
@@ -138,7 +140,7 @@ fun VoidSearchIsland(
             .systemBarsPadding()
             .imePadding()
             .padding(horizontal = 16.dp, vertical = 20.dp),
-        contentAlignment = Alignment.CenterEnd,
+        contentAlignment = Alignment.BottomEnd,
     ) {
         val progress = fraction.value
         val collapsed = progress < 0.5f
@@ -166,10 +168,10 @@ fun VoidSearchIsland(
                 .height(IslandHeight)
                 .shadow(elevation = lerpDp(0.dp, 6.dp, progress), shape = IslandShape, clip = false)
                 .clip(IslandShape)
-                .background(lerpColor(VoidRed, MaterialTheme.colorScheme.surfaceVariant, progress))
+                .background(lerpColor(VoidRed, MaterialTheme.colorScheme.surfaceContainerHigh, progress))
                 .border(
                     width = 1.dp,
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.7f * progress),
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.9f * progress),
                     shape = IslandShape,
                 )
                 .then(
@@ -237,7 +239,7 @@ fun VoidSearchIsland(
                         .fillMaxHeight(),
                     contentAlignment = Alignment.Center,
                 ) {
-                    InnerMark(modifier = Modifier.size(24.dp))
+                    InnerMark(modifier = Modifier.size(21.dp))
                 }
             }
         }
