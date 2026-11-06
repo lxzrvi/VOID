@@ -26,9 +26,9 @@ re-flows mid-animation.
 
 ## Install
 
-1. Open the [Releases](../../releases) page.
-2. Download `VOID-<version>.apk` and open it on the device (allow "install
-   unknown apps" for the browser / file manager).
+**[Download the latest APK](https://github.com/lxzrvi/VOID/releases/latest)** →
+`VOID-<version>.apk`, open it on the device and allow "install unknown apps" for
+the browser / file manager. Latest: **0.1.0** (`dev.voidapp`, minSdk 26, ~1.3 MB).
 
 Every push to `main` publishes a new release automatically, so there is nothing
 to build locally.
