@@ -2,7 +2,6 @@ package dev.voidapp.ui.components
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -19,7 +18,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -27,7 +25,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
@@ -50,6 +47,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
@@ -77,8 +75,9 @@ import dev.voidapp.ui.theme.VoidRed
 /** Diameter of the resting circle, and the height of the grown bar. */
 private val IslandHeight = 56.dp
 
-/** Margin of the circle from the bottom-right corner of the screen. */
+/** Distance of the circle from the bottom-right corner of the screen. */
 private val EdgeMargin = 16.dp
+
 private val IslandShape = RoundedCornerShape(IslandHeight / 2)
 private val PillShape = RoundedCornerShape(20.dp)
 private val CounterShape = RoundedCornerShape(8.dp)
@@ -90,12 +89,14 @@ private enum class IslandGlyph { Dots, Close }
  * The whole app.
  *
  * Resting: a blank page with one red circle pinned to the **bottom-right**
- * corner, showing the VOID inner mark.
+ * corner, showing the VOID inner mark. Tapping it grows the circle into a
+ * full-width bar (search field on the left, pill on the right).
  *
- * Tapping the circle grows it smoothly to the full width. The grown bar holds a
- * search field on the left (flexible width) and a pill on the right with
- * back / next arrows, a "current/total" counter and the glyph button where the
- * inner icon turns into three dots.
+ * Layout note: the grown content is laid out **inside** the animated width - it
+ * is never laid out at full width and clipped. Earlier the row was forced to
+ * [fullWidth] and only clipped for drawing, which left an invisible full-screen
+ * text field taking every tap (that is why tapping anywhere opened the keyboard
+ * and the circle seemed dead).
  */
 @Composable
 fun VoidSearchIsland(
@@ -108,7 +109,7 @@ fun VoidSearchIsland(
     var glyph by rememberSaveable { mutableStateOf(IslandGlyph.Dots) }
 
     // 0f = resting circle, 1f = full-width bar. One value drives the width, the
-    // colour, the shadow and the content cross-fade, so they always move together.
+    // colour, the shadow and both content cross-fades, so they stay in sync.
     val progress by animateFloatAsState(
         targetValue = if (expanded) 1f else 0f,
         animationSpec = spring(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow),
@@ -145,13 +146,10 @@ fun VoidSearchIsland(
             .imePadding()
             .padding(horizontal = EdgeMargin, vertical = EdgeMargin),
     ) {
-        // maxWidth belongs to this scope; the island's inner Box/Row lambdas
-        // would otherwise shadow it.
         val fullWidth = maxWidth
         val islandWidth = lerpDp(IslandHeight, fullWidth, progress)
-        val collapsed = progress < 0.5f
 
-        // Tapping the blank page collapses the bar again.
+        // Scrim: tapping the blank page closes the bar. Only present while open.
         if (expanded) {
             Box(
                 modifier = Modifier
@@ -169,25 +167,19 @@ fun VoidSearchIsland(
 
         Box(
             modifier = Modifier
-                .align(Alignment.BottomEnd)          // bottom-right corner
+                .align(Alignment.BottomEnd)
                 .width(islandWidth)
                 .height(IslandHeight)
-                .shadow(
-                    elevation = lerpDp(0.dp, 8.dp, progress),
-                    shape = IslandShape,
-                    clip = false,
-                )
+                .shadow(elevation = lerpDp(0.dp, 8.dp, progress), shape = IslandShape, clip = false)
                 .clip(IslandShape)
-                .background(
-                    lerpColor(VoidRed, colors.surfaceContainerHigh, progress),
-                )
+                .background(lerpColor(VoidRed, colors.surfaceContainerHigh, progress))
                 .border(
                     width = 1.dp,
                     color = lerpColor(Color.Transparent, colors.outline, progress),
                     shape = IslandShape,
                 )
                 .then(
-                    if (collapsed) {
+                    if (!expanded) {
                         Modifier.clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = ripple(bounded = true, color = Color.White),
@@ -203,46 +195,8 @@ fun VoidSearchIsland(
                 ),
             contentAlignment = Alignment.CenterEnd,
         ) {
-            // Grown content is laid out at the final width and revealed by the
-            // widening clip, so the pill stays pinned to the right edge and
-            // nothing re-flows while the bar grows.
-            Row(
-                modifier = Modifier
-                    .requiredWidth(fullWidth)
-                    .fillMaxHeight()
-                    .padding(start = 22.dp, end = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                SearchField(
-                    query = query,
-                    onQueryChange = { query = it },
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight(),
-                )
-                Spacer(Modifier.width(8.dp))
-                IslandPill(
-                    counter = stringResource(
-                        R.string.result_counter,
-                        if (total == 0) 0 else index + 1,
-                        total,
-                    ),
-                    glyph = glyph,
-                    onPrevious = { if (total > 0) index = (index - 1 + total) % total },
-                    onNext = { if (total > 0) index = (index + 1) % total },
-                    onGlyphClick = {
-                        if (glyph == IslandGlyph.Dots) glyph = IslandGlyph.Close else expanded = false
-                    },
-                )
-            }
-
-            // Resting circle content: the VOID inner mark, centred in the circle.
-            AnimatedVisibility(
-                visible = collapsed,
-                modifier = Modifier.align(Alignment.CenterEnd),
-                enter = fadeIn(tween(140)) + scaleIn(initialScale = 0.6f),
-                exit = fadeOut(tween(110)) + scaleOut(targetScale = 0.6f),
-            ) {
+            // Resting content: the inner mark on the red circle.
+            if (!expanded) {
                 Box(
                     modifier = Modifier
                         .width(IslandHeight)
@@ -250,6 +204,46 @@ fun VoidSearchIsland(
                     contentAlignment = Alignment.Center,
                 ) {
                     InnerMark(modifier = Modifier.size(21.dp))
+                }
+            }
+
+            // Grown content. Composed only once the bar is actually opening, so it
+            // can never cover the circle or steal taps while collapsed. Its width
+            // is the island's width: the pill keeps its intrinsic size on the
+            // right, the search field takes whatever is left.
+            if (expanded) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .alpha(((progress - 0.25f) / 0.75f).coerceIn(0f, 1f))
+                        .padding(start = 22.dp, end = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    SearchField(
+                        query = query,
+                        onQueryChange = { query = it },
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight(),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    IslandPill(
+                        counter = stringResource(
+                            R.string.result_counter,
+                            if (total == 0) 0 else index + 1,
+                            total,
+                        ),
+                        glyph = glyph,
+                        onPrevious = { if (total > 0) index = (index - 1 + total) % total },
+                        onNext = { if (total > 0) index = (index + 1) % total },
+                        onGlyphClick = {
+                            if (glyph == IslandGlyph.Dots) {
+                                glyph = IslandGlyph.Close
+                            } else {
+                                expanded = false
+                            }
+                        },
+                    )
                 }
             }
         }
@@ -400,7 +394,7 @@ private fun CounterBadge(
     }
 }
 
-/** Trailing circle of the pill: inner icon, then three dots, then a close cross. */
+/** Trailing circle of the pill: inner icon slot, three dots, then a close cross. */
 @Composable
 private fun GlyphButton(
     glyph: IslandGlyph,
@@ -439,14 +433,12 @@ private fun GlyphButton(
                 IslandGlyph.Dots -> Lucide.Ellipsis
                 IslandGlyph.Close -> Lucide.X
             }
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = label,
-                    tint = colors.onSurface,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = colors.onSurface,
+                modifier = Modifier.size(18.dp),
+            )
         }
     }
 }
