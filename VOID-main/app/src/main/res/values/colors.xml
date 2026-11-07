@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <!-- Brand red, taken from icon/void_icon.svg -->
-    <color name="void_red">#C10520</color>
-    <color name="void_black">#000000</color>
-    <color name="void_white">#FFFFFF</color>
-</resources>
