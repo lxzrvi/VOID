@@ -194,7 +194,7 @@ class VoidAppState(
         private set
     val boxEdits = mutableStateMapOf<String, BoxEdit>().apply { putAll(store.cachedBoxEdits) }
 
-    fun setBackground(value: Background) {
+    fun updateBackground(value: Background) {
         background = value
         store.writeBackground(value)
     }
@@ -317,14 +317,14 @@ class VoidAppState(
     var desktopMode by mutableStateOf(false)
         private set
 
-    fun setDarkTheme(value: Boolean) {
+    fun updateDarkTheme(value: Boolean) {
         darkTheme = value
         store.darkTheme = value
     }
 
-    fun toggleTheme() = setDarkTheme(!darkTheme)
+    fun toggleTheme() = updateDarkTheme(!darkTheme)
 
-    fun setDesktopMode(value: Boolean) {
+    fun updateDesktopMode(value: Boolean) {
         desktopMode = value
         bridge?.setDesktopMode(value)
     }
@@ -411,7 +411,7 @@ class VoidAppState(
     }
 
     override fun toggleDesktopMode() {
-        setDesktopMode(!desktopMode)
+        updateDesktopMode(!desktopMode)
         showToast(if (desktopMode) "Desktop site" else "Mobile site")
     }
 

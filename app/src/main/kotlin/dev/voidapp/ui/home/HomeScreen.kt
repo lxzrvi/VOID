@@ -346,7 +346,7 @@ fun HomeScreen(
     state.backgroundPickerAt?.let {
         BackgroundEditorSheet(
             background = state.background,
-            onChange = state::setBackground,
+            onChange = state::updateBackground,
             onDismiss = { state.backgroundPickerAt = null },
         )
     }

@@ -317,12 +317,12 @@ fun SettingsSheet(state: VoidAppState, onDismiss: () -> Unit) {
             SettingRow(
                 label = stringResource(R.string.setting_dark),
                 checked = state.darkTheme,
-                onChange = { state.setDarkTheme(it) },
+                onChange = { state.updateDarkTheme(it) },
             )
             SettingRow(
                 label = stringResource(R.string.setting_desktop),
                 checked = state.desktopMode,
-                onChange = { state.setDesktopMode(it) },
+                onChange = { state.updateDesktopMode(it) },
             )
             SettingRow(
                 label = stringResource(R.string.setting_island_right),
