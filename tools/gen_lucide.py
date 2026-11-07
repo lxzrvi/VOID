@@ -15,7 +15,9 @@ ICONS = [
     "Search", "Plus", "House", "RotateCw", "Share2", "Copy", "ExternalLink",
     "Monitor", "History", "Bookmark", "Settings", "Trash2", "Files", "Globe",
     "Clock", "ArrowUpRight", "Star", "Download", "Type", "Maximize2",
-    "CornerDownLeft",
+    "CornerDownLeft", "ChevronDown", "FileText", "ArrowDownUp", "Maximize", "Layers",
+    "Minus", "Sun", "Droplet", "Palette", "Grid2x2", "Link", "Link2", "Save",
+    "ZoomIn", "ZoomOut", "ArrowUp", "Moon", "Pencil", "SlidersHorizontal",
 ]
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent

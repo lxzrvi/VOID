@@ -1,9 +1,8 @@
 package dev.voidapp.ui.browser
 
 /**
- * What the island's tools can do to the running WebView. [BrowserScreen] installs
- * an implementation when it creates the WebView; when no browser is open the
- * hooks are no-ops (or fall back to opening the home page / a URL).
+ * What the island's tools can do to the running WebView. BrowserScreen installs an
+ * implementation while a page is open; the island never touches WebView directly.
  */
 interface BrowserBridge {
     val canGoBack: Boolean
@@ -14,9 +13,9 @@ interface BrowserBridge {
     fun back()
     fun forward()
     fun reload()
+    fun scrollToTop()
     fun setDesktopMode(enabled: Boolean)
     fun zoomBy(delta: Float)
-    fun findInPage(text: String)
+    fun findInPage()
     fun savePage()
-    fun printPage()
 }

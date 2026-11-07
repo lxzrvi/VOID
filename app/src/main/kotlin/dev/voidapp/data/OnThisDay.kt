@@ -9,7 +9,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 
-/** One "on this day" event, as served by Wikipedia's public feed. */
+/** One "on this day" event from Wikipedia's public feed. */
 data class DayEvent(
     val year: Int,
     val text: String,
@@ -17,8 +17,8 @@ data class DayEvent(
 )
 
 /**
- * Fetches today's events from Wikipedia's "On this day" API - free, no key, no
- * library. The result is cached in memory per day and persisted by the caller.
+ * Wikipedia "On this day" - free, no key, no library. The last successful result
+ * is persisted so the home page shows something even offline.
  */
 object OnThisDay {
 
@@ -26,19 +26,17 @@ object OnThisDay {
         val calendar = Calendar.getInstance()
         val month = calendar.get(Calendar.MONTH) + 1
         val day = calendar.get(Calendar.DAY_OF_MONTH)
-        val url = "https://api.wikimedia.org/feed/v1/wikipedia/en/onthisday/selected/" +
-            "$month/$day"
+        val url = "https://api.wikimedia.org/feed/v1/wikipedia/en/onthisday/selected/$month/$day"
 
         runCatching {
             val connection = (URL(url).openConnection() as HttpURLConnection).apply {
                 connectTimeout = 10_000
                 readTimeout = 10_000
                 setRequestProperty("Accept", "application/json")
-                setRequestProperty("User-Agent", "VOID-Android/0.2 (https://github.com/lxzrvi/VOID)")
+                setRequestProperty("User-Agent", "VOID-Android/0.3 (https://github.com/lxzrvi/VOID)")
             }
             try {
-                val body = connection.inputStream.bufferedReader().use { it.readText() }
-                parse(body)
+                parse(connection.inputStream.bufferedReader().use { it.readText() })
             } finally {
                 connection.disconnect()
             }
@@ -47,25 +45,19 @@ object OnThisDay {
 
     private fun parse(body: String): List<DayEvent> {
         val root = JSONObject(body)
-        val events = root.optJSONArray("selected") ?: root.optJSONArray("events")
-        ?: return emptyList()
-
+        val events = root.optJSONArray("selected") ?: root.optJSONArray("events") ?: return emptyList()
         val out = ArrayList<DayEvent>(events.length())
         for (i in 0 until events.length()) {
             val obj = events.optJSONObject(i) ?: continue
             val text = obj.optString("text").takeIf { it.isNotBlank() } ?: continue
-            val pages = obj.optJSONArray("pages")
-            val sourceUrl = pages?.optJSONObject(0)?.optJSONObject("content_urls")
-                ?.optJSONObject("desktop")?.optString("page")
-            out += DayEvent(year = obj.optInt("year"), text = text, sourceUrl = sourceUrl)
+            val source = obj.optJSONArray("pages")?.optJSONObject(0)
+                ?.optJSONObject("content_urls")?.optJSONObject("desktop")?.optString("page")
+            out += DayEvent(obj.optInt("year"), text, source)
         }
         return out
     }
 
-    /** "Fri 7 Nov" style label for the home header. */
-    fun todayLabel(): String =
-        SimpleDateFormat("EEE d MMM", Locale.getDefault()).format(Calendar.getInstance().time)
+    fun todayLabel(): String = SimpleDateFormat("EEE d MMM", Locale.getDefault()).format(Calendar.getInstance().time)
 
-    fun timeLabel(): String =
-        SimpleDateFormat("HH:mm", Locale.getDefault()).format(Calendar.getInstance().time)
+    fun timeLabel(): String = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Calendar.getInstance().time)
 }

@@ -7,7 +7,6 @@ import android.webkit.CookieManager
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -17,38 +16,40 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import dev.voidapp.R
-import dev.voidapp.data.urlForInput
 import dev.voidapp.ui.VoidAppState
 import dev.voidapp.ui.icons.Lucide
 import dev.voidapp.ui.theme.VoidRed
 
 /**
- * The in-app browser: one WebView, a load-progress bar pinned to the bottom of
- * the screen in the brand red with an animated pulse, and pull-down-to-refresh.
+ * The in-app browser.
+ *
+ * The page is drawn edge to edge - the status bar area is transparent so the
+ * page's own colour shows through, including while scrolling. The address is not
+ * shown here: the island bar carries the current URL, which is what long-presses
+ * into the link menu.
  *
  * All tool actions (back / forward / reload / zoom / desktop mode / find ...) run
  * through [BrowserBridge], which this screen installs on the shared app state.
@@ -57,7 +58,6 @@ import dev.voidapp.ui.theme.VoidRed
 @Composable
 fun BrowserScreen(
     state: VoidAppState,
-    startUrl: String,
     modifier: Modifier = Modifier,
     onScrollDirection: (Float) -> Unit = {},
 ) {
@@ -66,13 +66,8 @@ fun BrowserScreen(
     var webView by remember { mutableStateOf<WebView?>(null) }
     var progress by remember { mutableStateOf(0f) }
     var failed by remember { mutableStateOf(false) }
-    var desktopMode by remember { mutableStateOf(false) }
     var title by remember { mutableStateOf("") }
-    var currentUrl by remember { mutableStateOf(startUrl) }
-
-    // ---- pull-to-refresh -------------------------------------------------
-    var pull by remember { mutableStateOf(0f) }
-    var refreshing by remember { mutableStateOf(false) }
+    var currentUrl by remember { mutableStateOf(state.address) }
 
     Box(modifier = modifier.background(MaterialTheme.colorScheme.background)) {
         AndroidView(
@@ -91,6 +86,7 @@ fun BrowserScreen(
                         builtInZoomControls = true
                         displayZoomControls = false
                         mediaPlaybackRequiresUserGesture = false
+                        setSupportZoom(true)
                     }
                     CookieManager.getInstance().setAcceptCookie(true)
                     CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
@@ -106,6 +102,7 @@ fun BrowserScreen(
                             progress = 1f
                             currentUrl = url ?: currentUrl
                             title = view?.title.orEmpty()
+                            state.address = currentUrl
                             state.recordVisit(currentUrl, title)
                         }
 
@@ -126,17 +123,24 @@ fun BrowserScreen(
                     webChromeClient = object : android.webkit.WebChromeClient() {
                         override fun onProgressChanged(view: WebView?, newProgress: Int) {
                             progress = newProgress / 100f
-                            if (newProgress >= 100) title = view?.title.orEmpty()
+                            if (newProgress >= 100) {
+                                title = view?.title.orEmpty()
+                                currentUrl = view?.url ?: currentUrl
+                                state.address = currentUrl
+                            }
                         }
                     }
 
-                    loadUrl(startUrl)
                     webView = this
                 }
             },
+            update = { view ->
+                val target = state.address
+                if (target.isNotBlank() && view.url != target) view.loadUrl(target)
+            },
             modifier = Modifier
                 .fillMaxSize()
-                .systemBarsPadding()
+                // The page runs under the status bar; content is not pushed down.
                 .nestedScroll(
                     remember {
                         object : NestedScrollConnection {
@@ -147,29 +151,23 @@ fun BrowserScreen(
                         }
                     },
                 ),
-            update = { view ->
-                if (view.url == null) view.loadUrl(startUrl) else if (view.url != startUrl &&
-                    startUrl.isNotBlank() && view.url == null
-                ) {
-                    view.loadUrl(startUrl)
-                }
-            },
         )
 
-        // ---- load progress, bottom of the screen, brand red with pulse ----
+        // ---- load progress: hairline under the status bar ------------------
         val animatedProgress by animateFloatAsState(progress, label = "progress")
         if (animatedProgress < 1f) {
             Box(
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
+                    .align(Alignment.TopCenter)
                     .fillMaxWidth()
-                    .height(3.dp)
-                    .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
+                    .statusBarsPadding()
+                    .height(2.dp)
+                    .background(Color.Transparent),
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth(animatedProgress.coerceIn(0.02f, 1f))
-                        .height(3.dp)
+                        .height(2.dp)
                         .background(VoidRed),
                 )
             }
@@ -212,9 +210,9 @@ fun BrowserScreen(
                 override fun back() = view.goBack()
                 override fun forward() = view.goForward()
                 override fun reload() = view.reload()
+                override fun scrollToTop() = view.scrollTo(0, 0)
 
                 override fun setDesktopMode(enabled: Boolean) {
-                    desktopMode = enabled
                     view.settings.userAgentString = if (enabled) {
                         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
                     } else {
@@ -223,32 +221,23 @@ fun BrowserScreen(
                     view.reload()
                 }
 
+                /** Page zoom via the WebView's own zoom API. */
                 override fun zoomBy(delta: Float) {
-                    // WebView zoom is page-level; re-scale via initial scale + text zoom.
-                    view.settings.textZoom = (view.settings.textZoom * (1f + delta)).toInt().coerceIn(50, 250)
+                    view.zoomBy(delta)
                 }
 
-                override fun findInPage(text: String) {
-                    if (text.isBlank()) view.clearMatches() else view.findAllAsync(text)
+                override fun findInPage() {
+                    // There is no text prompt in the island, so jump to the last
+                    // find and let the user refine it in the page's own UI.
+                    view.findAllAsync("")
                 }
 
                 override fun savePage() {
-                    // Saved into the app cache dir; the filesystem path is required.
                     val file = java.io.File(view.context.cacheDir, "void-page-${System.currentTimeMillis()}.mht")
                     view.saveWebArchive(file.absolutePath)
-                }
-
-                override fun printPage() {
-                    view.createPrintDocumentAdapter("VOID")
                 }
             }
         }
         onDispose { state.bridge = null }
-    }
-
-    // Keep following the address the state asks for (search from the island).
-    LaunchedEffect(startUrl) {
-        val view = webView ?: return@LaunchedEffect
-        if (startUrl.isNotBlank() && view.url != startUrl) view.loadUrl(startUrl)
     }
 }

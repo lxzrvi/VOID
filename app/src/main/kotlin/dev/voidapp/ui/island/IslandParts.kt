@@ -1,36 +1,30 @@
 package dev.voidapp.ui.island
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,489 +32,564 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import dev.voidapp.R
-import dev.voidapp.data.SearchProvider
 import dev.voidapp.ui.VoidAppState
 import dev.voidapp.ui.icons.Lucide
+import dev.voidapp.ui.theme.Poppins
 import dev.voidapp.ui.theme.VoidRed
+import androidx.compose.ui.res.stringResource
 
 private val SheetShape = RoundedCornerShape(22.dp)
-private val TileShape = RoundedCornerShape(14.dp)
+private val CellShape = RoundedCornerShape(14.dp)
+private val Cell = 52.dp
 
-// ===========================================================================
-// Bar pieces
-// ===========================================================================
-
-/** Circular action button used for the search glyph inside the bar. */
-@Composable
-internal fun CircleAction(
-    icon: ImageVector,
-    label: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val colors = MaterialTheme.colorScheme
-    Box(
-        modifier = modifier
-            .size(34.dp)
-            .clip(CircleShape)
-            .background(colors.surface)
-            .border(1.dp, colors.outline, CircleShape)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = ripple(bounded = true),
-                role = Role.Button,
-                onClickLabel = label,
-                onClick = onClick,
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = label,
-            tint = colors.onSurface,
-            modifier = Modifier.size(17.dp),
-        )
-    }
-}
-
-/**
- * `← 1/9 →` - the counter between the arrows is the piece that opens the
- * navigator sheet when tapped.
- */
-@Composable
-internal fun ArrowCounter(
-    index: Int,
-    total: Int,
-    onPrevious: () -> Unit,
-    onNext: () -> Unit,
-    onCounter: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val colors = MaterialTheme.colorScheme
-    Row(
-        modifier = modifier.height(34.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        BareIconButton(icon = Lucide.ArrowLeft, label = stringResource(R.string.action_previous), onClick = onPrevious)
-        Box(
-            modifier = Modifier
-                .height(28.dp)
-                .clip(RoundedCornerShape(9.dp))
-                .background(colors.surfaceVariant)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = ripple(bounded = true),
-                    onClickLabel = stringResource(R.string.action_next),
-                    onClick = onCounter,
-                )
-                .padding(horizontal = 7.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            AnimatedContent(
-                targetState = "${if (total == 0) 0 else index + 1}/$total",
-                transitionSpec = { fadeIn(tween(160)) togetherWith fadeOut(tween(90)) },
-                label = "counter",
-            ) { value ->
-                Text(
-                    text = value,
-                    color = colors.onSurface,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    textAlign = TextAlign.Center,
-                )
-            }
-        }
-        BareIconButton(icon = Lucide.ArrowRight, label = stringResource(R.string.action_next), onClick = onNext)
-    }
-}
+/** One tool: a glyph, a label and what it does. */
+data class ToolSpec(val key: String, val label: String, val icon: ImageVector)
 
 @Composable
-internal fun BareIconButton(
-    icon: ImageVector,
-    label: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Box(
-        modifier = modifier
-            .size(30.dp)
-            .clip(CircleShape)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = ripple(bounded = true),
-                role = Role.Button,
-                onClickLabel = label,
-                onClick = onClick,
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = label,
-            tint = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.size(17.dp),
-        )
-    }
-}
-
-@Composable
-internal fun SearchField(
-    query: String,
-    onQueryChange: (String) -> Unit,
-    provider: SearchProvider,
-    modifier: Modifier = Modifier,
-) {
-    val colors = MaterialTheme.colorScheme
-    val focusManager = LocalFocusManager.current
-    val style = TextStyle(
-        color = colors.onSurface,
-        fontSize = 16.sp,
-        fontWeight = FontWeight.Medium,
-        textAlign = TextAlign.Start,
-    )
-
-    BasicTextField(
-        value = query,
-        onValueChange = onQueryChange,
-        modifier = modifier,
-        singleLine = true,
-        textStyle = style,
-        cursorBrush = SolidColor(VoidRed),
-        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-        keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
-        decorationBox = { inner ->
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.CenterStart) {
-                if (query.isEmpty()) {
-                    Text(
-                        text = stringResource(R.string.search_hint),
-                        style = style,
-                        color = colors.onSurfaceVariant,
-                    )
-                }
-                inner()
-            }
-        },
-    )
-}
-
-// ===========================================================================
-// Tools panel: 3 rows x 5 columns, horizontally scrollable for more
-// ===========================================================================
-
-internal data class ToolAction(
-    val key: String,
-    val icon: ImageVector,
-    val labelRes: Int,
-    val core: Boolean,
-    val onClick: () -> Unit,
+fun toolSpecs(state: VoidAppState): List<ToolSpec> = listOf(
+    ToolSpec("back", stringResource(R.string.tool_back), Lucide.ArrowLeft),
+    ToolSpec("forward", stringResource(R.string.tool_forward), Lucide.ArrowRight),
+    ToolSpec("reload", stringResource(R.string.tool_reload), Lucide.RotateCw),
+    ToolSpec("home", stringResource(R.string.tool_home), Lucide.House),
+    ToolSpec("tabs", stringResource(R.string.tool_tabs), Lucide.Layers),
+    ToolSpec("notes", stringResource(R.string.tool_notes), Lucide.FileText),
+    ToolSpec("history", stringResource(R.string.tool_history), Lucide.History),
+    ToolSpec("bookmark", stringResource(R.string.tool_bookmark), Lucide.Bookmark),
+    ToolSpec("share", stringResource(R.string.tool_share), Lucide.Share2),
+    ToolSpec("copy", stringResource(R.string.tool_copy), Lucide.Copy),
+    ToolSpec("external", stringResource(R.string.tool_external), Lucide.ExternalLink),
+    ToolSpec("desktop", stringResource(R.string.tool_desktop), Lucide.Monitor),
+    ToolSpec("zoom_in", stringResource(R.string.tool_zoom_in), Lucide.ZoomIn),
+    ToolSpec("zoom_out", stringResource(R.string.tool_zoom_out), Lucide.ZoomOut),
+    ToolSpec("find", stringResource(R.string.tool_find), Lucide.Search),
+    ToolSpec("top", stringResource(R.string.tool_top), Lucide.ArrowUp),
+    ToolSpec("settings", stringResource(R.string.tool_settings), Lucide.Settings),
+    ToolSpec("clear", stringResource(R.string.tool_clear), Lucide.Trash2),
+    ToolSpec("save", stringResource(R.string.tool_save), Lucide.Save),
+    ToolSpec("theme", stringResource(R.string.tool_theme), Lucide.Moon),
 )
 
+/** Runs a tool. Plain function: it is called from click handlers. */
+private fun runTool(state: VoidAppState, key: String) {
+    when (key) {
+        "back" -> state.browserBack()
+        "forward" -> state.browserForward()
+        "reload" -> state.browserReload()
+        "home" -> state.goHome()
+        "tabs" -> state.openTabs()
+        "notes" -> state.openNotes()
+        "history" -> state.openHistory()
+        "bookmark" -> state.bookmarkCurrent()
+        "bookmark_page" -> state.bookmarkCurrent()
+        "share" -> state.shareCurrent()
+        "copy" -> state.copyCurrent()
+        "external" -> state.openCurrentExternally()
+        "desktop" -> state.toggleDesktopMode()
+        "zoom_in" -> state.zoomBy(0.15f)
+        "zoom_out" -> state.zoomBy(-0.15f)
+        "find" -> state.findInPage()
+        "top" -> state.scrollToTop()
+        "settings" -> state.openSettings()
+        "clear" -> state.clearBrowsingData()
+        "save" -> state.saveCurrent()
+        "theme" -> state.toggleTheme()
+        else -> Unit
+    }
+}
+
+/** Rounded container used by every island sheet. */
 @Composable
-internal fun ToolsPanel(
-    state: VoidAppState,
-    modifier: Modifier = Modifier,
-) {
-    val colors = MaterialTheme.colorScheme
+private fun Sheet(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    Box(
+        modifier = modifier
+            .clip(SheetShape)
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.5.dp, MaterialTheme.colorScheme.outline, SheetShape)
+            .padding(12.dp),
+    ) {
+        content()
+    }
+}
 
-    val coreTools = listOf(
-        ToolAction("back", Lucide.ChevronLeft, R.string.browser_back, true) { state.browserBack() },
-        ToolAction("forward", Lucide.ChevronRight, R.string.browser_forward, true) { state.browserForward() },
-        ToolAction("reload", Lucide.RotateCw, R.string.browser_reload, true) { state.browserReload() },
-        ToolAction("home", Lucide.House, R.string.browser_home, true) { state.goHome() },
-        ToolAction("tabs", Lucide.Files, R.string.browser_reload, true) { state.browserReload() },
-        ToolAction("history", Lucide.History, R.string.browser_history, false) { state.showHistoryInIsland() },
-        ToolAction("bookmark", Lucide.Bookmark, R.string.browser_bookmark_add, false) { state.bookmarkCurrent() },
-        ToolAction("share", Lucide.Share2, R.string.browser_share, false) { state.shareCurrent() },
-        ToolAction("copy", Lucide.Copy, R.string.browser_copy, false) { state.copyCurrent() },
-        ToolAction("external", Lucide.ExternalLink, R.string.browser_open_external, false) { state.openCurrentExternally() },
-        ToolAction("desktop", Lucide.Monitor, R.string.browser_desktop, false) { state.toggleDesktopMode() },
-        ToolAction("find", Lucide.Type, R.string.browser_find, false) { state.findInPage() },
-        ToolAction("zoom_in", Lucide.Plus, R.string.browser_zoom_in, false) { state.zoomBy(0.15f) },
-        ToolAction("zoom_out", Lucide.Maximize2, R.string.browser_zoom_out, false) { state.zoomBy(-0.15f) },
-        ToolAction("settings", Lucide.Settings, R.string.browser_settings, false) { state.openSettings() },
-        ToolAction("clear", Lucide.Trash2, R.string.browser_clear_data, false) { state.clearBrowsingData() },
-        ToolAction("downloads", Lucide.Download, R.string.browser_save, false) { state.saveCurrent() },
-        ToolAction("globe", Lucide.Globe, R.string.browser_open_external, false) { state.openCurrentExternally() },
-        ToolAction("clock", Lucide.Clock, R.string.browser_reload, false) { state.browserReload() },
-        ToolAction("star", Lucide.Star, R.string.browser_bookmarks, false) { state.showBookmarksInIsland() },
-        ToolAction("zoom_reset", Lucide.ArrowUpRight, R.string.browser_zoom_in, false) { state.zoomBy(0f) },
-        ToolAction("exit", Lucide.X, R.string.browser_close, false) { state.goHome() },
-    )
+// ===========================================================================
+// Tools: grid that fits its contents, long press to reorder
+// ===========================================================================
 
-    // 3 rows x 5 columns per page: chunk into pages so a page never breaks mid-row.
+@Composable
+fun ToolsPanel(state: VoidAppState, modifier: Modifier = Modifier) {
+    val specs = toolSpecs(state)
+    val ordered = state.toolOrder.mapNotNull { key -> specs.firstOrNull { it.key == key } }
+    val haptics = LocalHapticFeedback.current
+
+    // The grid is sized to the content: `columns` per row, last row never padded
+    // with blanks because it is chunked, not laid out in a fixed grid.
     val columns = 5
-    val rows = 3
-    val pageSize = columns * rows
-    val pages = coreTools.chunked(pageSize)
+    val chunks = ordered.chunked(columns)
 
-    Column(
-        modifier = modifier
-            .clip(SheetShape)
-            .background(colors.surfaceContainerHigh.copy(alpha = 0.97f))
-            .border(1.dp, colors.outline, SheetShape)
-            .shadow(10.dp, SheetShape)
-            .padding(vertical = 12.dp),
-    ) {
-        LazyRow(
-            modifier = Modifier.fillMaxWidth(),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            items(pages) { page ->
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    page.chunked(columns).forEach { row ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            row.forEach { tool -> ToolButton(tool) }
-                            // keep the last row aligned to 5 slots
-                            repeat(columns - row.size) { Spacer(Modifier.width(52.dp)) }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ToolButton(tool: ToolAction) {
-    val colors = MaterialTheme.colorScheme
-    val label = stringResource(tool.labelRes)
-    Column(
-        modifier = Modifier
-            .width(52.dp)
-            .clip(TileShape)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = ripple(bounded = true),
-                role = Role.Button,
-                onClickLabel = label,
-                onClick = tool.onClick,
-            )
-            .padding(vertical = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Icon(
-            imageVector = tool.icon,
-            contentDescription = null,
-            tint = colors.onSurface,
-            modifier = Modifier.size(20.dp),
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text = label,
-            color = colors.onSurfaceVariant,
-            fontSize = 9.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center,
-        )
-    }
-}
-
-// ===========================================================================
-// Navigator: grows up to ~half the screen with 1..9
-// ===========================================================================
-
-@Composable
-internal fun SettingsSheet(
-    state: VoidAppState,
-    onDismiss: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val colors = MaterialTheme.colorScheme
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(SheetShape)
-            .background(colors.surfaceContainerHigh.copy(alpha = 0.98f))
-            .border(1.dp, colors.outline, SheetShape)
-            .shadow(12.dp, SheetShape)
-            .padding(14.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = stringResource(R.string.browser_settings),
-                color = colors.onSurface,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Spacer(Modifier.weight(1f))
-            BareIconButton(icon = Lucide.X, label = stringResource(R.string.action_clear), onClick = onDismiss)
-        }
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = "Search with ${state.provider.label}",
-            color = colors.onSurfaceVariant,
-            fontSize = 12.sp,
-        )
-        Spacer(Modifier.height(6.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            SearchProvider.entries.take(3).forEach { provider ->
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(38.dp)
-                        .clip(TileShape)
-                        .background(if (provider == state.provider) VoidRed.copy(alpha = 0.14f) else colors.surface)
-                        .border(1.dp, if (provider == state.provider) VoidRed else colors.outline, TileShape)
-                        .clickable { state.selectProvider(provider) },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = provider.label,
-                        color = if (provider == state.provider) VoidRed else colors.onSurface,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-        }
-        Spacer(Modifier.height(6.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            SearchProvider.entries.drop(3).forEach { provider ->
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(38.dp)
-                        .clip(TileShape)
-                        .background(if (provider == state.provider) VoidRed.copy(alpha = 0.14f) else colors.surface)
-                        .border(1.dp, if (provider == state.provider) VoidRed else colors.outline, TileShape)
-                        .clickable { state.selectProvider(provider) },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = provider.label,
-                        color = if (provider == state.provider) VoidRed else colors.onSurface,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(38.dp)
-                .clip(TileShape)
-                .background(colors.surface)
-                .border(1.dp, colors.outline, TileShape)
-                .clickable {
-                    state.clearBrowsingData()
-                    onDismiss()
-                },
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = stringResource(R.string.browser_clear_data),
-                color = VoidRed,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-            )
-        }
-    }
-}
-
-@Composable
-internal fun NavigatorSheet(
-    results: List<String>,
-    selected: Int,
-    onPick: (Int) -> Unit,
-    onDismiss: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val colors = MaterialTheme.colorScheme
-    val cells = (results.size.coerceAtLeast(1)).coerceAtMost(9)
-
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(SheetShape)
-            .background(colors.surfaceContainerHigh.copy(alpha = 0.98f))
-            .border(1.dp, colors.outline, SheetShape)
-            .shadow(12.dp, SheetShape)
-            .padding(14.dp),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = stringResource(R.string.navigator_title),
-                color = colors.onSurface,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Spacer(Modifier.weight(1f))
-            BareIconButton(icon = Lucide.X, label = stringResource(R.string.action_clear), onClick = onDismiss)
-        }
-        Spacer(Modifier.height(8.dp))
-        // 1..9 in a 3x3 grid; each cell previews the matching result.
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            (0 until cells).chunked(3).forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    row.forEach { i ->
+    Sheet(modifier = modifier) {
+        Column {
+            ToolSectionLabel(stringResource(R.string.tool_section_common))
+            Spacer(Modifier.height(8.dp))
+            chunks.forEachIndexed { rowIndex, row ->
+                val firstOfRow = rowIndex * columns
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    row.forEachIndexed { col, tool ->
+                        val index = firstOfRow + col
+                        var dragging by remember(tool.key) { mutableStateOf(false) }
+                        var dragX by remember(tool.key) { mutableStateOf(0f) }
+                        var dragY by remember(tool.key) { mutableStateOf(0f) }
                         Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier
-                                .weight(1f)
-                                .height(52.dp)
-                                .clip(TileShape)
-                                .background(if (i == selected) VoidRed.copy(alpha = 0.14f) else colors.surface)
-                                .border(
-                                    1.dp,
-                                    if (i == selected) VoidRed else colors.outline,
-                                    TileShape,
+                                .width(Cell)
+                                .clip(CellShape)
+                                .background(
+                                    if (dragging) VoidRed.copy(alpha = 0.18f)
+                                    else MaterialTheme.colorScheme.surfaceVariant,
                                 )
-                                .clickable { onPick(i) }
-                                .padding(horizontal = 8.dp),
-                            verticalArrangement = Arrangement.Center,
+                                .pointerInput(ordered.map { it.key }) {
+                                    detectDragGesturesAfterLongPress(
+                                        onDragStart = {
+                                            dragging = true
+                                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        },
+                                        onDrag = { change, amount ->
+                                            change.consume()
+                                            // Accumulate so a slow drag still steps.
+                                            dragX += amount.x
+                                            dragY += amount.y
+                                            val stepX = size.width.coerceAtLeast(1) * 0.7f
+                                            val stepY = size.height.coerceAtLeast(1) * 0.7f
+                                            val horizontal = kotlin.math.abs(dragX) > stepX
+                                            val vertical = kotlin.math.abs(dragY) > stepY
+                                            if (horizontal || vertical) {
+                                                val dir = if (horizontal) {
+                                                    if (dragX > 0) 1 else -1
+                                                } else {
+                                                    if (dragY > 0) columns else -columns
+                                                }
+                                                val from = ordered.indexOfFirst { it.key == tool.key }
+                                                val to = (from + dir).coerceIn(0, ordered.lastIndex)
+                                                if (from >= 0 && to != from) state.moveTool(from, to)
+                                                dragX = 0f
+                                                dragY = 0f
+                                            }
+                                        },
+                                        onDragEnd = { dragging = false },
+                                        onDragCancel = { dragging = false },
+                                    )
+                                }
+                                .clickable {
+                                    runTool(state, tool.key)
+                                    if (tool.key != "tabs" && tool.key != "settings" && tool.key != "notes") {
+                                        state.hidePanel()
+                                    }
+                                }
+                                .padding(vertical = 9.dp),
                         ) {
-                            Text(
-                                text = (i + 1).toString(),
-                                color = if (i == selected) VoidRed else colors.onSurface,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
+                            Icon(
+                                imageVector = tool.icon,
+                                contentDescription = tool.label,
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(19.dp),
                             )
+                            Spacer(Modifier.height(5.dp))
                             Text(
-                                text = results.getOrNull(i) ?: "—",
-                                color = colors.onSurfaceVariant,
-                                fontSize = 9.sp,
+                                text = tool.label,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontFamily = Poppins,
+                                fontSize = 8.5.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
                         }
                     }
-                    repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+                }
+                if (rowIndex != chunks.lastIndex) Spacer(Modifier.height(8.dp))
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = stringResource(R.string.tools_reorder_hint),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontFamily = Poppins,
+                fontSize = 9.sp,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ToolSectionLabel(text: String) {
+    Text(
+        text = text.uppercase(),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        fontFamily = Poppins,
+        fontSize = 9.sp,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = 1.sp,
+    )
+}
+
+// ===========================================================================
+// Navigator: results / history / bookmarks list
+// ===========================================================================
+
+@Composable
+fun NavigatorSheet(
+    results: List<String>,
+    selected: Int,
+    onPick: (Int) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Sheet {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            ToolSectionLabel(stringResource(R.string.navigator))
+            Spacer(Modifier.height(8.dp))
+            if (results.isEmpty()) {
+                Text(
+                    stringResource(R.string.nothing_here),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontFamily = Poppins,
+                    fontSize = 11.sp,
+                )
+            } else {
+                LazyColumn(modifier = Modifier.heightIn(max = 260.dp)) {
+                    itemsIndexed(results) { i, item ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(
+                                    if (i == selected) VoidRed.copy(alpha = 0.12f) else Color.Transparent,
+                                )
+                                .clickable { onPick(i) }
+                                .padding(horizontal = 8.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = "${i + 1}",
+                                color = if (i == selected) VoidRed else MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontFamily = Poppins,
+                                fontSize = 10.sp,
+                                modifier = Modifier.width(18.dp),
+                            )
+                            Text(
+                                text = item,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontFamily = Poppins,
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
                 }
             }
         }
     }
 }
 
-/** Vertical guide shown while the island is being dragged. */
+// ===========================================================================
+// Settings
+// ===========================================================================
+
 @Composable
-internal fun DragHint(modifier: Modifier = Modifier) {
+fun SettingsSheet(state: VoidAppState, onDismiss: () -> Unit) {
+    Sheet {
+        Column(modifier = Modifier.width(250.dp)) {
+            ToolSectionLabel(stringResource(R.string.settings))
+            Spacer(Modifier.height(6.dp))
+            SettingRow(
+                label = stringResource(R.string.setting_dark),
+                checked = state.darkTheme,
+                onChange = { state.setDarkTheme(it) },
+            )
+            SettingRow(
+                label = stringResource(R.string.setting_desktop),
+                checked = state.desktopMode,
+                onChange = { state.setDesktopMode(it) },
+            )
+            SettingRow(
+                label = stringResource(R.string.setting_island_right),
+                checked = state.islandOnRight,
+                onChange = { state.placeIsland(state.islandOffset, it) },
+            )
+            Spacer(Modifier.height(4.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                MiniButton(stringResource(R.string.clear_browsing)) { state.clearBrowsingData() }
+                MiniButton(stringResource(R.string.tool_clear_notes)) { state.clearNotes() }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 38.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, color = MaterialTheme.colorScheme.onSurface, fontFamily = Poppins, fontSize = 11.5.sp)
+        Spacer(Modifier.weight(1f))
+        Switch(checked = checked, onCheckedChange = onChange)
+    }
+}
+
+@Composable
+private fun MiniButton(label: String, onClick: () -> Unit) {
     Box(
-        modifier = modifier
-            .size(0.dp)
-            .alpha(0f),
+        modifier = Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 7.dp),
+    ) {
+        Text(label, color = MaterialTheme.colorScheme.onSurface, fontFamily = Poppins, fontSize = 10.sp)
+    }
+}
+
+// ===========================================================================
+// Notes (the same list as the home Notes button)
+// ===========================================================================
+
+@Composable
+fun NotesPanel(state: VoidAppState, onDismiss: () -> Unit) {
+    var draft by remember { mutableStateOf("") }
+    val focus = LocalFocusManager.current
+    Sheet {
+        Column(modifier = Modifier.width(250.dp)) {
+            ToolSectionLabel(stringResource(R.string.notes))
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .padding(horizontal = 10.dp, vertical = 11.dp),
+                ) {
+                    if (draft.isEmpty()) {
+                        Text(
+                            stringResource(R.string.notes_hint),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontFamily = Poppins,
+                            fontSize = 11.sp,
+                        )
+                    }
+                    BasicTextField(
+                        value = draft,
+                        onValueChange = { draft = it },
+                        textStyle = TextStyle(
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontFamily = Poppins,
+                            fontSize = 11.5.sp,
+                        ),
+                        cursorBrush = SolidColor(VoidRed),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                Spacer(Modifier.width(6.dp))
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(CircleShape)
+                        .background(VoidRed)
+                        .clickable {
+                            state.addNote(draft)
+                            draft = ""
+                            focus.clearFocus()
+                        },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Lucide.Plus, null, tint = Color.White, modifier = Modifier.size(16.dp))
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            if (state.notes.isEmpty()) {
+                Text(
+                    stringResource(R.string.notes_empty),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontFamily = Poppins,
+                    fontSize = 10.sp,
+                )
+            } else {
+                LazyColumn(modifier = Modifier.heightIn(max = 200.dp)) {
+                    items(state.notes, key = { it.id }) { note ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 3.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .padding(horizontal = 9.dp, vertical = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                note.text,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontFamily = Poppins,
+                                fontSize = 11.sp,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Icon(
+                                Lucide.X,
+                                null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier
+                                    .size(15.dp)
+                                    .clickable { state.removeNote(note) },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ===========================================================================
+// Bar long-press menu
+// ===========================================================================
+
+@Composable
+fun BarMenuDialog(
+    state: VoidAppState,
+    query: String,
+    onDismiss: () -> Unit,
+    onExpand: () -> Unit,
+) {
+    val url = if (state.browserOpen) state.currentUrl else state.resolve(query)
+    val items = listOf(
+        Triple(stringResource(R.string.menu_copy), Lucide.Copy) { state.copyLink(url) },
+        Triple(stringResource(R.string.menu_share), Lucide.Share2) { state.shareLink(url) },
+        Triple(stringResource(R.string.menu_shortcut), Lucide.Plus) { state.makeShortcut(url) },
+        Triple(stringResource(R.string.menu_new_tab), Lucide.Layers) { state.openInNewTab(url) },
+        Triple(stringResource(R.string.menu_close_tab), Lucide.X) { state.closeActiveTab() },
+        Triple(stringResource(R.string.menu_refresh), Lucide.RotateCw) { state.browserReload() },
+        Triple(stringResource(R.string.menu_bookmark), Lucide.Bookmark) { state.toggleBookmark(url, url) },
+        Triple(stringResource(R.string.menu_external), Lucide.ExternalLink) { state.openCurrentExternally() },
     )
+
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(SheetShape)
+                .background(MaterialTheme.colorScheme.surface)
+                .border(1.5.dp, MaterialTheme.colorScheme.outline, SheetShape)
+                .padding(10.dp),
+        ) {
+            Column {
+                Text(
+                    text = url,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontFamily = Poppins,
+                    fontSize = 10.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp),
+                )
+                items.forEach { (label, icon, action) ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                                action()
+                                onDismiss()
+                            }
+                            .padding(horizontal = 8.dp, vertical = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            icon,
+                            null,
+                            tint = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(17.dp),
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            label,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontFamily = Poppins,
+                            fontSize = 12.5.sp,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The arrow / counter box: previous, the 1/9 position, next. It wears the same
+ * border as the bar itself, which is what the three-dot box copies too.
+ */
+@Composable
+fun ArrowCounter(
+    index: Int,
+    total: Int,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    onCounter: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(12.dp)
+    Row(
+        modifier = Modifier
+            .height(32.dp)
+            .clip(shape)
+            .border(1.5.dp, colors.outline, shape)
+            .padding(horizontal = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Lucide.ArrowUp,
+            contentDescription = stringResource(R.string.action_previous),
+            tint = colors.onSurface,
+            modifier = Modifier
+                .size(26.dp)
+                .clip(CircleShape)
+                .clickable(onClick = onPrevious)
+                .padding(5.dp),
+        )
+        Text(
+            text = "${(index + 1).coerceAtMost(total.coerceAtLeast(1))}/${total.coerceAtLeast(1)}",
+            color = colors.onSurfaceVariant,
+            fontFamily = Poppins,
+            fontSize = 10.sp,
+            maxLines = 1,
+            modifier = Modifier
+                .clip(RoundedCornerShape(6.dp))
+                .clickable(onClick = onCounter)
+                .padding(horizontal = 3.dp, vertical = 4.dp),
+        )
+        Icon(
+            Lucide.ChevronDown,
+            contentDescription = stringResource(R.string.action_next),
+            tint = colors.onSurface,
+            modifier = Modifier
+                .size(26.dp)
+                .clip(CircleShape)
+                .clickable(onClick = onNext)
+                .padding(5.dp),
+        )
+    }
 }

@@ -2,50 +2,91 @@ package dev.voidapp.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import dev.voidapp.R
 
-/** Brand red lifted from icon/void_icon.svg. */
+/** Brand red, lifted from icon/void_icon.svg. */
 val VoidRed = Color(0xFFC10520)
 
+/** "Phantom" near-blacks: the app never uses a greyish-blue dark. */
+val Phantom = Color(0xFF0A0A0B)
+val PhantomSurface = Color(0xFF141416)
+val PhantomRaised = Color(0xFF1C1C1F)
+val PhantomOutline = Color(0xFF2E2E33)
+val PhantomText = Color(0xFFF5F5F5)
+val PhantomMuted = Color(0xFF9C9CA3)
+
+val Poppins = FontFamily(
+    Font(R.font.poppins_regular, FontWeight.Normal),
+    Font(R.font.poppins_medium, FontWeight.Medium),
+    Font(R.font.poppins_semibold, FontWeight.SemiBold),
+    Font(R.font.poppins_bold, FontWeight.Bold),
+)
+
+private fun poppinsTypography(): Typography {
+    val base = Typography()
+    fun TextStyle.poppins() = copy(fontFamily = Poppins)
+    return Typography(
+        displayLarge = base.displayLarge.poppins(),
+        displayMedium = base.displayMedium.poppins(),
+        displaySmall = base.displaySmall.poppins(),
+        headlineLarge = base.headlineLarge.poppins(),
+        headlineMedium = base.headlineMedium.poppins(),
+        headlineSmall = base.headlineSmall.poppins(),
+        titleLarge = base.titleLarge.poppins(),
+        titleMedium = base.titleMedium.poppins(),
+        titleSmall = base.titleSmall.poppins(),
+        bodyLarge = base.bodyLarge.poppins(),
+        bodyMedium = base.bodyMedium.poppins(),
+        bodySmall = base.bodySmall.poppins(),
+        labelLarge = base.labelLarge.poppins(),
+        labelMedium = base.labelMedium.poppins(),
+        labelSmall = base.labelSmall.poppins(),
+    )
+}
+
+/**
+ * Light theme: plain white page, near-black text, white boxes with a hairline.
+ * Dark theme: "phantom" blacks (never grey-blue), white boxes turn black.
+ */
 private val LightColors = lightColorScheme(
     primary = VoidRed,
     onPrimary = Color.White,
-    // The page stays blank white; the grown island is the only raised surface,
-    // so it gets a light grey container + a hairline border to read against it.
     background = Color.White,
-    onBackground = Color.Black,
+    onBackground = Phantom,
     surface = Color.White,
-    onSurface = Color.Black,
-    surfaceVariant = Color(0xFFEFEFF2),
-    onSurfaceVariant = Color(0xFF5C5C66),
-    surfaceContainer = Color(0xFFF6F6F8),
-    surfaceContainerHigh = Color(0xFFEDEDF1),
-    surfaceContainerHighest = Color(0xFFE4E4EA),
-    outline = Color(0xFFD3D3DA),
+    onSurface = Phantom,
+    surfaceVariant = Color(0xFFF4F4F5),
+    onSurfaceVariant = Color(0xFF6B6B70),
+    surfaceContainer = Color(0xFFFFFFFF),
+    surfaceContainerHigh = Color(0xFFFFFFFF),
+    surfaceContainerHighest = Color(0xFFF7F7F8),
+    outline = Color(0xFFE2E2E4),
 )
 
 private val DarkColors = darkColorScheme(
     primary = VoidRed,
     onPrimary = Color.White,
-    background = Color.Black,
-    onBackground = Color.White,
-    surface = Color.Black,
-    onSurface = Color.White,
-    surfaceVariant = Color(0xFF1A1A1F),
-    onSurfaceVariant = Color(0xFF9A9AA5),
-    surfaceContainer = Color(0xFF121216),
-    surfaceContainerHigh = Color(0xFF1C1C22),
-    surfaceContainerHighest = Color(0xFF26262E),
-    outline = Color(0xFF3A3A44),
+    background = Phantom,
+    onBackground = PhantomText,
+    surface = Phantom,
+    onSurface = PhantomText,
+    surfaceVariant = PhantomRaised,
+    onSurfaceVariant = PhantomMuted,
+    surfaceContainer = PhantomSurface,
+    surfaceContainerHigh = PhantomSurface,
+    surfaceContainerHighest = PhantomRaised,
+    outline = PhantomOutline,
 )
 
-/**
- * Follows the system light/dark setting and draws edge to edge: the whole
- * screen is just a plain surface with the island floating on top of it.
- */
 @Composable
 fun VoidTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
@@ -53,6 +94,7 @@ fun VoidTheme(
 ) {
     MaterialTheme(
         colorScheme = if (darkTheme) DarkColors else LightColors,
+        typography = poppinsTypography(),
         content = content,
     )
 }

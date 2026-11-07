@@ -9,7 +9,6 @@ import androidx.activity.enableEdgeToEdge
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import dev.voidapp.ui.VoidRoot
-import dev.voidapp.ui.theme.VoidTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -23,9 +22,9 @@ class MainActivity : ComponentActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
         setContent {
-            VoidTheme {
-                VoidRoot()
-            }
+            // VoidRoot owns the theme: it reads the user's dark/light choice and
+            // also drives the status bar icon colour, so there is never a strip.
+            VoidRoot()
         }
     }
 }

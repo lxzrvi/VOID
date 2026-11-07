@@ -35,6 +35,10 @@ class VoidAndroidComposePlugin : Plugin<Project> {
                 add("implementation", library("androidx-webkit"))
                 add("implementation", library("androidx-splashscreen"))
                 add("implementation", library("kotlinx-coroutines-android"))
+
+                // Remote images: shortcut favicons and the custom home background.
+                add("implementation", library("coil-compose"))
+                add("implementation", library("coil-network"))
             }
         }
     }

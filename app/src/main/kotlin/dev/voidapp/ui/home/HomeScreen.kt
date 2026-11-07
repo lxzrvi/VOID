@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,7 +21,6 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -36,20 +36,23 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
@@ -61,44 +64,50 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.voidapp.R
+import dev.voidapp.data.Background
 import dev.voidapp.data.OnThisDay
-import dev.voidapp.data.SearchProvider
 import dev.voidapp.data.Site
+import dev.voidapp.ui.IslandPanel
 import dev.voidapp.ui.VoidAppState
-import dev.voidapp.ui.components.AppMark
 import dev.voidapp.ui.components.Favicon
+import dev.voidapp.ui.components.SearchButton
 import dev.voidapp.ui.icons.Lucide
+import dev.voidapp.ui.theme.Poppins
 import dev.voidapp.ui.theme.VoidRed
 
-private val CardShape = RoundedCornerShape(26.dp)
-private val FieldShape = RoundedCornerShape(18.dp)
-
 /**
- * Home page: gradient in the app-icon red, a small "void" wordmark, time/date and
- * today's event on the right, a search bar (whose leading icon is the app icon and
- * opens the provider picker) and a frosted box with the website shortcuts.
+ * Home page.
  *
- * [onScrollDirection] reports the vertical scroll direction so the island can
- * slide away when the page scrolls - this screen owns the scroll state.
+ * - A full-bleed background (brand gradient, custom gradient or photo) that also
+ *   paints behind the status bar - the bars stay transparent, no black strip.
+ * - Small bold "void" wordmark, time / date / today's event on the right.
+ * - Search bar: the provider's own favicon plus a down arrow on the left, the
+ *   app mark + a bare search glyph on the right (no circle behind it).
+ * - Frosted shortcut box with an adaptive grid (as many columns as fit the
+ *   shortcuts, no empty cells), a notes row and a + tile.
+ * - Long-press anything: a box editor (size, position, radius, opacity, tint) or,
+ *   on empty background, the background editor (gradient / image, blur, dim,
+ *   brightness).
  */
 @Composable
 fun HomeScreen(
     state: VoidAppState,
-    onScrollDirection: (delta: Float) -> Unit,
+    onScrollDirection: (Float) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var query by remember { mutableStateOf("") }
     var showAddSite by remember { mutableStateOf(false) }
     var showEvent by remember { mutableStateOf(false) }
     var showProviders by remember { mutableStateOf(false) }
+    var showNoteDialog by remember { mutableStateOf(false) }
 
-    val colors = MaterialTheme.colorScheme
     val focusManager = LocalFocusManager.current
     val scrollState = rememberScrollState()
+    val shortcutEdit = state.boxEdit("shortcuts")
+    val searchEdit = state.boxEdit("search")
 
     BackHandler(enabled = query.isNotEmpty()) { query = "" }
 
-    // Feed scroll deltas upward so the island can hide on scroll-down.
     val scrollReporter = remember(onScrollDirection) {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
@@ -109,40 +118,41 @@ fun HomeScreen(
     }
 
     Box(
-        modifier = modifier.background(
-            Brush.verticalGradient(
-                colorStops = arrayOf(
-                    0f to VoidRed.copy(alpha = 0.95f),
-                    0.35f to VoidRed.copy(alpha = 0.62f),
-                    1f to colors.background,
-                ),
-            ),
-        ),
+        modifier = modifier
+            .fillMaxSize()
+            .pointerInput(Unit) {
+                // Long press on empty space -> background editor, at that very spot.
+                detectDragGesturesAfterLongPress(
+                    onDragStart = { offset ->
+                        state.backgroundPickerAt = offset.x / size.width to offset.y / size.height
+                    },
+                )
+            },
     ) {
+        BackgroundLayer(background = state.background)
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .systemBarsPadding()
                 .nestedScroll(scrollReporter)
                 .verticalScroll(scrollState)
-                .padding(horizontal = 20.dp, vertical = 14.dp),
+                .padding(horizontal = 18.dp, vertical = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // ---- wordmark -------------------------------------------------
             Text(
                 text = "void",
                 color = Color.White,
-                fontSize = 26.sp,
-                fontWeight = FontWeight.Light,
-                letterSpacing = 7.sp,
-                modifier = Modifier.alpha(0.95f),
+                fontFamily = Poppins,
+                fontSize = 25.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 5.sp,
             )
 
-            // ---- time / date / event --------------------------------------
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 12.dp),
+                    .padding(top = 10.dp),
                 verticalAlignment = Alignment.Top,
             ) {
                 Spacer(Modifier.weight(1f))
@@ -150,17 +160,17 @@ fun HomeScreen(
                     Text(
                         text = OnThisDay.timeLabel(),
                         color = Color.White,
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Medium,
+                        fontSize = 21.sp,
+                        fontWeight = FontWeight.SemiBold,
                     )
                     Text(
                         text = OnThisDay.todayLabel(),
-                        color = Color.White.copy(alpha = 0.72f),
+                        color = Color.White.copy(alpha = 0.7f),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
-                        letterSpacing = 1.2.sp,
+                        letterSpacing = 1.1.sp,
                     )
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(7.dp))
                     EventChip(
                         text = when {
                             state.eventLoading -> stringResource(R.string.event_loading)
@@ -172,76 +182,104 @@ fun HomeScreen(
                 }
             }
 
-            Spacer(Modifier.height(22.dp))
+            Spacer(Modifier.height(18.dp))
 
-            // ---- home search bar ------------------------------------------
-            HomeSearchBar(
-                query = query,
-                onQueryChange = { query = it },
-                provider = state.provider,
-                onProviderClick = { showProviders = true },
-                onSubmit = {
-                    focusManager.clearFocus()
-                    state.search(query)
-                },
-            )
-
-            Spacer(Modifier.height(20.dp))
-
-            // ---- websites box ---------------------------------------------
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(CardShape)
-                    .background(Color.White.copy(alpha = 0.13f))
-                    .border(1.dp, Color.White.copy(alpha = 0.2f), CardShape)
-                    .padding(horizontal = 12.dp, vertical = 14.dp),
+            // ---- search box (appearance-editable, long press) --------------
+            EditableBox(
+                edit = searchEdit,
+                onLongPress = { state.editingBox = "search" },
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 4.dp),
+                HomeSearchBar(
+                    query = query,
+                    onQueryChange = { query = it },
+                    state = state,
+                    onProviderClick = { showProviders = true },
+                    onSubmit = {
+                        focusManager.clearFocus()
+                        state.search(query)
+                    },
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // ---- shortcuts box --------------------------------------------
+            EditableBox(
+                edit = shortcutEdit,
+                onLongPress = { state.editingBox = "shortcuts" },
+            ) {
+                ShortcutBox(state = state, onAdd = { showAddSite = true })
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            // ---- three-dot + notes, right below the shortcuts ---------------
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(46.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.surface)
+                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
+                        .clickable { state.showPanel(IslandPanel.Tools) },
+                    contentAlignment = Alignment.Center,
                 ) {
-                    Text(
-                        text = stringResource(R.string.shortcuts),
-                        color = Color.White.copy(alpha = 0.85f),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        letterSpacing = 1.4.sp,
-                    )
-                    Spacer(Modifier.weight(1f))
-                    Text(
-                        text = state.sites.size.toString(),
-                        color = Color.White.copy(alpha = 0.5f),
-                        fontSize = 11.sp,
+                    Icon(
+                        imageVector = Lucide.Ellipsis,
+                        contentDescription = stringResource(R.string.browser_tools),
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(20.dp),
                     )
                 }
-                Spacer(Modifier.height(10.dp))
-
-                // 5 columns; the whole box is inside a vertical scroll, so the grid
-                // itself must not scroll (its height is fixed to fit every row).
-                val rows = ((state.sites.size + 1) + 4) / 5
-                val gridHeight = (rows * 78).dp
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(5),
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(gridHeight),
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
-                    horizontalArrangement = Arrangement.spacedBy(2.dp),
-                    userScrollEnabled = false,
+                        .weight(1f)
+                        .height(46.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.surface)
+                        .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(16.dp))
+                        .clickable { showNoteDialog = true },
+                    contentAlignment = Alignment.Center,
                 ) {
-                    items(state.sites, key = { it.url }) { site ->
-                        SiteTile(
-                            site = site,
-                            onClick = { state.open(site.url) },
-                            onLongClick = { state.removeSite(site) },
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Lucide.FileText,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(17.dp),
                         )
+                        Spacer(Modifier.width(7.dp))
+                        Text(
+                            text = stringResource(R.string.notes),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 11.sp,
+                            fontFamily = Poppins,
+                            fontWeight = FontWeight.Medium,
+                        )
+                        if (state.notes.isNotEmpty()) {
+                            Spacer(Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(17.dp)
+                                    .clip(CircleShape)
+                                    .background(VoidRed),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(
+                                    text = state.notes.size.toString(),
+                                    color = Color.White,
+                                    fontSize = 9.sp,
+                                    fontFamily = Poppins,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                            }
+                        }
                     }
-                    item(key = "__add__") { AddTile(onClick = { showAddSite = true }) }
                 }
             }
 
-            Spacer(Modifier.height(110.dp))
+            Spacer(Modifier.height(120.dp))
         }
     }
 
@@ -252,6 +290,13 @@ fun HomeScreen(
                 state.addSite(name, url)
                 showAddSite = false
             },
+        )
+    }
+
+    if (showNoteDialog) {
+        NotesDialog(
+            state = state,
+            onDismiss = { showNoteDialog = false },
         )
     }
 
@@ -284,6 +329,108 @@ fun HomeScreen(
             },
         )
     }
+
+    // ---- editors ------------------------------------------------------------
+    state.editingBox?.let { key ->
+        BoxEditorSheet(
+            title = key,
+            edit = state.boxEdit(key),
+            onChange = { state.setBoxEdit(key, it) },
+            onDismiss = { state.editingBox = null },
+        )
+    }
+
+    state.backgroundPickerAt?.let {
+        BackgroundEditorSheet(
+            background = state.background,
+            onChange = state::setBackground,
+            onDismiss = { state.backgroundPickerAt = null },
+        )
+    }
+}
+
+/** Background: brand gradient, custom gradient or photo, with blur/dim/brightness. */
+@Composable
+private fun BackgroundLayer(background: Background) {
+    val colors = MaterialTheme.colorScheme
+    when (background.kind) {
+        Background.Kind.Image -> {
+            val uri = background.imageUri
+            if (uri != null) {
+                coil.compose.AsyncImage(
+                    model = uri,
+                    contentDescription = null,
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        // Real gaussian blur, scaled with the user's slider (0-25 dp).
+                        .blur(radius = (background.blur.coerceIn(0f, 1f) * 25f).dp),
+                )
+            } else {
+                Box(Modifier.fillMaxSize().background(brandGradient(colors)))
+            }
+            if (background.dim > 0f) {
+                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = background.dim.coerceIn(0f, 0.9f))))
+            }
+            if (background.brightness > 0f) {
+                Box(Modifier.fillMaxSize().background(Color.White.copy(alpha = background.brightness.coerceIn(0f, 0.6f))))
+            }
+        }
+        Background.Kind.Gradient -> Box(
+            Modifier.fillMaxSize().background(
+                Brush.linearGradient(
+                    listOf(Color(background.startColor), Color(background.endColor)),
+                    start = Offset.Zero,
+                    end = Offset(
+                        kotlin.math.cos(Math.toRadians(background.angle.toDouble())).toFloat() * 1200f,
+                        kotlin.math.sin(Math.toRadians(background.angle.toDouble())).toFloat() * 1200f,
+                    ),
+                ),
+            ),
+        )
+        Background.Kind.Brand -> Box(Modifier.fillMaxSize().background(brandGradient(colors)))
+    }
+}
+
+private fun brandGradient(colors: androidx.compose.material3.ColorScheme) = Brush.verticalGradient(
+    colorStops = arrayOf(
+        0f to VoidRed,
+        0.38f to VoidRed.copy(alpha = 0.55f),
+        1f to colors.background,
+    ),
+)
+
+/** A box that can be scaled, moved, rounded, faded and tinted from a long press. */
+@Composable
+private fun EditableBox(
+    edit: dev.voidapp.data.BoxEdit,
+    onLongPress: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .graphicsLayer {
+                scaleX = edit.scale
+                scaleY = edit.scale
+                alpha = edit.alpha
+                translationX = edit.x
+                translationY = edit.y
+            }
+            .clip(RoundedCornerShape(edit.radiusDp.dp))
+            .then(
+                if (edit.colorArgb != null) {
+                    Modifier.background(Color(edit.colorArgb))
+                } else {
+                    Modifier
+                },
+            )
+            .pointerInput(Unit) {
+                detectDragGesturesAfterLongPress(onDragStart = { onLongPress() })
+            },
+    ) {
+        content()
+    }
 }
 
 @Composable
@@ -291,12 +438,13 @@ private fun EventChip(text: String, onClick: () -> Unit) {
     Text(
         text = text,
         color = Color.White.copy(alpha = 0.92f),
-        fontSize = 11.sp,
+        fontSize = 10.sp,
+        fontFamily = Poppins,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         textAlign = TextAlign.End,
         modifier = Modifier
-            .width(224.dp)
+            .width(220.dp)
             .clip(RoundedCornerShape(10.dp))
             .background(Color.Black.copy(alpha = 0.22f))
             .clickable(
@@ -312,43 +460,55 @@ private fun EventChip(text: String, onClick: () -> Unit) {
 private fun HomeSearchBar(
     query: String,
     onQueryChange: (String) -> Unit,
-    provider: SearchProvider,
+    state: VoidAppState,
     onProviderClick: () -> Unit,
     onSubmit: () -> Unit,
 ) {
+    val colors = MaterialTheme.colorScheme
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(54.dp)
-            .clip(FieldShape)
-            .background(Color.White.copy(alpha = 0.16f))
-            .border(1.dp, Color.White.copy(alpha = 0.3f), FieldShape)
-            .padding(start = 7.dp, end = 7.dp),
+            .clip(RoundedCornerShape(18.dp))
+            .background(colors.surface)
+            .border(1.dp, colors.outline, RoundedCornerShape(18.dp))
+            .padding(start = 8.dp, end = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // Leading circle = the app icon; tapping it chooses the search provider.
-        Box(
+        // Provider: its own favicon + down arrow (no coloured chip behind it).
+        Row(
             modifier = Modifier
-                .size(40.dp)
                 .clip(CircleShape)
-                .background(VoidRed)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
-                    indication = ripple(bounded = true, color = Color.White),
-                    onClickLabel = provider.label,
+                    indication = ripple(bounded = true),
+                    onClickLabel = state.provider.label,
                     onClick = onProviderClick,
-                ),
-            contentAlignment = Alignment.Center,
+                )
+                .padding(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            AppMark(modifier = Modifier.size(18.dp))
+            Favicon(
+                faviconUrl = state.provider.faviconUrl,
+                contentDescription = state.provider.label,
+                size = 26.dp,
+                circleColor = Color.Transparent,
+            )
+            Icon(
+                imageVector = Lucide.ChevronDown,
+                contentDescription = null,
+                tint = colors.onSurfaceVariant,
+                modifier = Modifier.size(14.dp),
+            )
         }
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(8.dp))
         Box(modifier = Modifier.weight(1f)) {
             if (query.isEmpty()) {
                 Text(
-                    text = stringResource(R.string.search_on, provider.label),
-                    color = Color.White.copy(alpha = 0.62f),
-                    fontSize = 15.sp,
+                    text = stringResource(R.string.search_on, state.provider.label),
+                    color = colors.onSurfaceVariant,
+                    fontSize = 14.sp,
+                    fontFamily = Poppins,
                 )
             }
             BasicTextField(
@@ -356,56 +516,144 @@ private fun HomeSearchBar(
                 onValueChange = onQueryChange,
                 singleLine = true,
                 textStyle = TextStyle(
-                    color = Color.White,
-                    fontSize = 15.sp,
+                    color = colors.onSurface,
+                    fontSize = 14.sp,
+                    fontFamily = Poppins,
                     fontWeight = FontWeight.Medium,
                 ),
-                cursorBrush = SolidColor(Color.White),
+                cursorBrush = SolidColor(VoidRed),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = { onSubmit() }),
                 modifier = Modifier.fillMaxWidth(),
             )
         }
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.18f))
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = ripple(bounded = true, color = Color.White),
-                    onClick = onSubmit,
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Lucide.Search,
-                contentDescription = stringResource(R.string.search_hint),
-                tint = Color.White,
-                modifier = Modifier.size(18.dp),
+        // Bare search glyph with the void mark inside - no circle, same as the island.
+        SearchButton(
+            onClick = onSubmit,
+            contentDescription = stringResource(R.string.search_hint),
+            size = 22.dp,
+            tint = colors.onSurface,
+        )
+        Spacer(Modifier.width(4.dp))
+    }
+}
+
+@Composable
+private fun ShortcutBox(
+    state: VoidAppState,
+    onAdd: () -> Unit,
+) {
+    val colors = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(24.dp)
+    val sites = state.visibleSites
+
+    // Adaptive columns: as many as needed, but never more than 5, so the grid
+    // never shows an empty row of slots.
+    val columns = when {
+        sites.size + 1 <= 4 -> sites.size + 1
+        sites.size + 1 <= 8 -> 4
+        else -> 5
+    }.coerceAtLeast(1)
+
+    var draggingFrom by remember { mutableIntStateOf(-1) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(colors.surface)
+            .border(1.dp, colors.outline, shape)
+            .padding(horizontal = 12.dp, vertical = 14.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 4.dp)) {
+            Text(
+                text = stringResource(R.string.shortcuts),
+                color = colors.onSurfaceVariant,
+                fontSize = 10.sp,
+                fontFamily = Poppins,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 1.3.sp,
             )
+            Spacer(Modifier.weight(1f))
+            Text(
+                text = sites.size.toString(),
+                color = colors.onSurfaceVariant,
+                fontSize = 10.sp,
+                fontFamily = Poppins,
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(columns),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(((sites.size + 1 + columns - 1) / columns * 82).dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            userScrollEnabled = false,
+        ) {
+            itemsIndexed(sites, key = { _, site -> site.key }) { index, site ->
+                SiteTile(
+                    site = site,
+                    state = state,
+                    onClick = { state.open(site.url) },
+                    onLongClick = { draggingFrom = index },
+                    onDrag = { delta ->
+                        if (draggingFrom >= 0) {
+                            val target = (draggingFrom + delta).coerceIn(0, sites.lastIndex)
+                            if (target != draggingFrom) {
+                                state.moveSite(draggingFrom, target)
+                                draggingFrom = target
+                            }
+                        }
+                    },
+                    onDragEnd = { draggingFrom = -1 },
+                )
+            }
+            item(key = "__add__") {
+                AddTile(onClick = onAdd)
+            }
         }
     }
 }
 
-@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 private fun SiteTile(
     site: Site,
+    state: VoidAppState,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
+    onDrag: (Int) -> Unit,
+    onDragEnd: () -> Unit,
 ) {
+    val colors = MaterialTheme.colorScheme
+    var dragAccum by remember { mutableFloatStateOf(0f) }
+
     Column(
         modifier = Modifier
             .clip(RoundedCornerShape(14.dp))
             .combinedClickable(
                 interactionSource = remember { MutableInteractionSource() },
-                indication = ripple(bounded = true, color = Color.White),
-                onClickLabel = stringResource(R.string.site_open, site.name),
-                onLongClickLabel = stringResource(R.string.site_remove, site.name),
+                indication = ripple(bounded = true, color = colors.onSurface),
                 onLongClick = onLongClick,
                 onClick = onClick,
             )
+            .pointerInput(site.key) {
+                detectDragGesturesAfterLongPress(
+                    onDrag = { change, amount ->
+                        change.consume()
+                        dragAccum += amount.x
+                        val step = 74f
+                        if (kotlin.math.abs(dragAccum) > step) {
+                            onDrag(if (dragAccum > 0) 1 else -1)
+                            dragAccum = 0f
+                        }
+                    },
+                    onDragEnd = { onDragEnd(); dragAccum = 0f },
+                    onDragCancel = { onDragEnd(); dragAccum = 0f },
+                )
+            }
             .padding(vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -413,12 +661,16 @@ private fun SiteTile(
             faviconUrl = site.faviconUrl,
             contentDescription = site.name,
             size = 44.dp,
+            circleColor = colors.surfaceVariant,
+            cachedBase64 = state.faviconFor(site.url),
+            onFetched = { encoded -> state.cacheFavicon(site.url, encoded) },
         )
         Spacer(Modifier.height(5.dp))
         Text(
             text = site.name,
-            color = Color.White.copy(alpha = 0.85f),
-            fontSize = 10.sp,
+            color = colors.onSurface.copy(alpha = 0.85f),
+            fontSize = 9.sp,
+            fontFamily = Poppins,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
@@ -428,14 +680,11 @@ private fun SiteTile(
 
 @Composable
 private fun AddTile(onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
     Column(
         modifier = Modifier
             .clip(RoundedCornerShape(14.dp))
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = ripple(bounded = true, color = Color.White),
-                onClick = onClick,
-            )
+            .clickable(onClick = onClick)
             .padding(vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -443,124 +692,25 @@ private fun AddTile(onClick: () -> Unit) {
             modifier = Modifier
                 .size(44.dp)
                 .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.1f))
-                .border(1.dp, Color.White.copy(alpha = 0.45f), CircleShape),
+                .background(colors.surfaceVariant)
+                .border(1.dp, colors.outline, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 imageVector = Lucide.Plus,
                 contentDescription = stringResource(R.string.action_add_site),
-                tint = Color.White,
+                tint = colors.onSurface,
                 modifier = Modifier.size(19.dp),
             )
         }
         Spacer(Modifier.height(5.dp))
         Text(
             text = stringResource(R.string.action_add_site),
-            color = Color.White.copy(alpha = 0.7f),
-            fontSize = 10.sp,
+            color = colors.onSurfaceVariant,
+            fontSize = 9.sp,
+            fontFamily = Poppins,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-@Composable
-internal fun AddSiteDialog(
-    onDismiss: () -> Unit,
-    onAdd: (name: String, url: String) -> Unit,
-) {
-    var name by remember { mutableStateOf("") }
-    var url by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.add_site_title)) },
-        text = {
-            Column {
-                DialogField(
-                    value = url,
-                    onValueChange = { url = it },
-                    hint = stringResource(R.string.add_site_url),
-                )
-                Spacer(Modifier.height(8.dp))
-                DialogField(
-                    value = name,
-                    onValueChange = { name = it },
-                    hint = stringResource(R.string.add_site_name),
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(enabled = url.isNotBlank(), onClick = { onAdd(name, url) }) {
-                Text(stringResource(R.string.add_site_confirm))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.add_site_cancel)) }
-        },
-    )
-}
-
-@Composable
-internal fun ProviderDialog(
-    current: SearchProvider,
-    onDismiss: () -> Unit,
-    onPick: (SearchProvider) -> Unit,
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Search with") },
-        text = {
-            Column {
-                SearchProvider.entries.forEach { provider ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .clickable { onPick(provider) }
-                            .padding(horizontal = 8.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = provider.label,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontSize = 15.sp,
-                            fontWeight = if (provider == current) FontWeight.SemiBold else FontWeight.Normal,
-                        )
-                        if (provider == current) {
-                            Spacer(Modifier.weight(1f))
-                            Text("•", color = VoidRed, fontSize = 20.sp)
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Close") } },
-    )
-}
-
-@Composable
-private fun DialogField(value: String, onValueChange: (String) -> Unit, hint: String) {
-    val colors = MaterialTheme.colorScheme
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(colors.surfaceVariant)
-            .padding(horizontal = 12.dp, vertical = 13.dp),
-    ) {
-        if (value.isEmpty()) {
-            Text(hint, color = colors.onSurfaceVariant, fontSize = 14.sp)
-        }
-        BasicTextField(
-            value = value,
-            onValueChange = onValueChange,
-            singleLine = true,
-            textStyle = TextStyle(color = colors.onSurface, fontSize = 14.sp),
-            cursorBrush = SolidColor(VoidRed),
-            modifier = Modifier.fillMaxWidth(),
         )
     }
 }
