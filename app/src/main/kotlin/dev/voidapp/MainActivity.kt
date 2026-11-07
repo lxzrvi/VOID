@@ -18,6 +18,12 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
         )
         super.onCreate(savedInstanceState)
+        // No translucent scrim behind the 3-button navigation bar: that grey/black
+        // strip is what showed under pages on some phones.
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            window.isNavigationBarContrastEnforced = false
+            window.isStatusBarContrastEnforced = false
+        }
         // The home screen is a full gradient; draw the bars over it.
         WindowCompat.setDecorFitsSystemWindows(window, false)
 

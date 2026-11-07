@@ -120,3 +120,11 @@ data class Background(
 ) {
     enum class Kind { Brand, Gradient, Image }
 }
+
+/** A tab as it is stored between launches. */
+@Immutable
+data class SavedTab(
+    val url: String,
+    val title: String,
+    val desktop: Boolean = false,
+)

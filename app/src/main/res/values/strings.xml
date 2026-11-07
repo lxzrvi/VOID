@@ -151,4 +151,18 @@
     <string name="menu_bookmark">Bookmark</string>
     <string name="menu_external">Open in another app</string>
     <string name="note_placeholder">Write a note</string>
+
+    <!-- Added: browser features -->
+    <string name="tool_newtab">New tab</string>
+    <string name="tool_bookmarks">Bookmarks</string>
+    <string name="tool_downloads">Downloads</string>
+    <string name="tool_translate">Translate</string>
+    <string name="setting_web_dark">Dark web pages</string>
+    <string name="setting_adblock">Block ads</string>
+    <string name="setting_suggestions">Suggestions</string>
+    <string name="library_title">Library</string>
+    <string name="library_history">History</string>
+    <string name="library_bookmarks">Bookmarks</string>
+    <string name="library_clear">Clear history</string>
+    <string name="library_empty">Nothing here yet</string>
 </resources>

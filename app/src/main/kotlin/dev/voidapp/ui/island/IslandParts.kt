@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -48,6 +49,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import dev.voidapp.R
 import dev.voidapp.ui.VoidAppState
+import dev.voidapp.ui.components.ReorderGrid
 import dev.voidapp.ui.icons.Lucide
 import dev.voidapp.ui.theme.Poppins
 import dev.voidapp.ui.theme.VoidRed
@@ -82,6 +84,10 @@ fun toolSpecs(state: VoidAppState): List<ToolSpec> = listOf(
     ToolSpec("clear", stringResource(R.string.tool_clear), Lucide.Trash2),
     ToolSpec("save", stringResource(R.string.tool_save), Lucide.Save),
     ToolSpec("theme", stringResource(R.string.tool_theme), Lucide.Moon),
+    ToolSpec("newtab", stringResource(R.string.tool_newtab), Lucide.Plus),
+    ToolSpec("bookmarks", stringResource(R.string.tool_bookmarks), Lucide.Star),
+    ToolSpec("downloads", stringResource(R.string.tool_downloads), Lucide.Download),
+    ToolSpec("translate", stringResource(R.string.tool_translate), Lucide.Globe),
 )
 
 /** Runs a tool. Plain function: it is called from click handlers. */
@@ -108,6 +114,10 @@ private fun runTool(state: VoidAppState, key: String) {
         "clear" -> state.clearBrowsingData()
         "save" -> state.saveCurrent()
         "theme" -> state.toggleTheme()
+        "newtab" -> state.startNewTab()
+        "bookmarks" -> state.openBookmarks()
+        "downloads" -> state.openDownloads()
+        "translate" -> state.translatePage()
         else -> Unit
     }
 }
@@ -134,93 +144,56 @@ private fun Sheet(modifier: Modifier = Modifier, content: @Composable () -> Unit
 fun ToolsPanel(state: VoidAppState, modifier: Modifier = Modifier) {
     val specs = toolSpecs(state)
     val ordered = state.toolOrder.mapNotNull { key -> specs.firstOrNull { it.key == key } }
-    val haptics = LocalHapticFeedback.current
 
-    // The grid is sized to the content: `columns` per row, last row never padded
-    // with blanks because it is chunked, not laid out in a fixed grid.
-    val columns = 5
-    val chunks = ordered.chunked(columns)
+    // Pick the column count that leaves no short row (24 tools -> 6 x 4); if
+    // nothing divides evenly the last row is stretched across the full width.
+    val columns = listOf(6, 5, 4).firstOrNull { ordered.size % it == 0 } ?: 5
 
     Sheet(modifier = modifier) {
         Column {
             ToolSectionLabel(stringResource(R.string.tool_section_common))
             Spacer(Modifier.height(8.dp))
-            chunks.forEachIndexed { rowIndex, row ->
-                val firstOfRow = rowIndex * columns
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    row.forEachIndexed { col, tool ->
-                        val index = firstOfRow + col
-                        var dragging by remember(tool.key) { mutableStateOf(false) }
-                        var dragX by remember(tool.key) { mutableStateOf(0f) }
-                        var dragY by remember(tool.key) { mutableStateOf(0f) }
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier
-                                .width(Cell)
-                                .clip(CellShape)
-                                .background(
-                                    if (dragging) VoidRed.copy(alpha = 0.18f)
-                                    else MaterialTheme.colorScheme.surfaceVariant,
-                                )
-                                .pointerInput(ordered.map { it.key }) {
-                                    detectDragGesturesAfterLongPress(
-                                        onDragStart = {
-                                            dragging = true
-                                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        },
-                                        onDrag = { change, amount ->
-                                            change.consume()
-                                            // Accumulate so a slow drag still steps.
-                                            dragX += amount.x
-                                            dragY += amount.y
-                                            val stepX = size.width.coerceAtLeast(1) * 0.7f
-                                            val stepY = size.height.coerceAtLeast(1) * 0.7f
-                                            val horizontal = kotlin.math.abs(dragX) > stepX
-                                            val vertical = kotlin.math.abs(dragY) > stepY
-                                            if (horizontal || vertical) {
-                                                val dir = if (horizontal) {
-                                                    if (dragX > 0) 1 else -1
-                                                } else {
-                                                    if (dragY > 0) columns else -columns
-                                                }
-                                                val from = ordered.indexOfFirst { it.key == tool.key }
-                                                val to = (from + dir).coerceIn(0, ordered.lastIndex)
-                                                if (from >= 0 && to != from) state.moveTool(from, to)
-                                                dragX = 0f
-                                                dragY = 0f
-                                            }
-                                        },
-                                        onDragEnd = { dragging = false },
-                                        onDragCancel = { dragging = false },
-                                    )
-                                }
-                                .clickable {
-                                    runTool(state, tool.key)
-                                    if (tool.key != "tabs" && tool.key != "settings" && tool.key != "notes") {
-                                        state.hidePanel()
-                                    }
-                                }
-                                .padding(vertical = 9.dp),
-                        ) {
-                            Icon(
-                                imageVector = tool.icon,
-                                contentDescription = tool.label,
-                                tint = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.size(19.dp),
-                            )
-                            Spacer(Modifier.height(5.dp))
-                            Text(
-                                text = tool.label,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontFamily = Poppins,
-                                fontSize = 8.5.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    }
+            ReorderGrid(
+                items = ordered,
+                itemKey = { it.key },
+                columns = columns,
+                cellHeight = 56.dp,
+                gap = 8.dp,
+                onMove = { from, to -> state.moveTool(from, to) },
+            ) { tool, _, lifted ->
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(CellShape)
+                        .background(
+                            if (lifted) VoidRed.copy(alpha = 0.18f)
+                            else MaterialTheme.colorScheme.surfaceVariant,
+                        )
+                        .clickable(enabled = !lifted) {
+                            runTool(state, tool.key)
+                            if (tool.key != "tabs" && tool.key != "settings" && tool.key != "notes") {
+                                state.hidePanel()
+                            }
+                        },
+                ) {
+                    Icon(
+                        imageVector = tool.icon,
+                        contentDescription = tool.label,
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.size(19.dp),
+                    )
+                    Spacer(Modifier.height(5.dp))
+                    Text(
+                        text = tool.label,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontFamily = Poppins,
+                        fontSize = 8.5.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
-                if (rowIndex != chunks.lastIndex) Spacer(Modifier.height(8.dp))
             }
             Spacer(Modifier.height(8.dp))
             Text(
@@ -323,6 +296,21 @@ fun SettingsSheet(state: VoidAppState, onDismiss: () -> Unit) {
                 label = stringResource(R.string.setting_desktop),
                 checked = state.desktopMode,
                 onChange = { state.updateDesktopMode(it) },
+            )
+            SettingRow(
+                label = stringResource(R.string.setting_web_dark),
+                checked = state.webDark,
+                onChange = { state.updateWebDark(it) },
+            )
+            SettingRow(
+                label = stringResource(R.string.setting_adblock),
+                checked = state.blockAds,
+                onChange = { state.updateBlockAds(it) },
+            )
+            SettingRow(
+                label = stringResource(R.string.setting_suggestions),
+                checked = state.suggestionsEnabled,
+                onChange = { state.updateSuggestionsEnabled(it) },
             )
             SettingRow(
                 label = stringResource(R.string.setting_island_right),

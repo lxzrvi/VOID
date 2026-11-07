@@ -22,7 +22,7 @@ defined = {}          # simple name -> package
 for path in files:
     text = path.read_text()
     pkg = re.search(r"^package\s+([\w.]+)", text, re.M).group(1)
-    for match in re.finditer(r"^(?:public |internal |private )?(?:data class|object|class|interface|fun|val|enum class)\s+([A-Za-z_]\w*)", text, re.M):
+    for match in re.finditer(r"^(?:public |internal |private )?(?:const val|data class|data object|sealed interface|object|class|interface|fun(?:\s*<[^>]*>)?|val|enum class)\s+([A-Za-z_]\w*)", text, re.M):
         defined[match.group(1)] = pkg
     # members of objects
     for match in re.finditer(r"^\s{4}(?:val|fun)\s+([A-Za-z_]\w*)", text, re.M):
@@ -42,7 +42,8 @@ for path in files:
 
     # brace balance
     depth = 0
-    stripped = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+    stripped = re.sub(r'"""[\s\S]*?"""', '""', text)          # raw strings (inlined JS)
+    stripped = re.sub(r"/\*.*?\*/", "", stripped, flags=re.S)
     stripped = re.sub(r'"(?:[^"\\]|\\.)*"', '""', stripped)
     stripped = re.sub(r"//[^\n]*", "", stripped)
     for ch in stripped:

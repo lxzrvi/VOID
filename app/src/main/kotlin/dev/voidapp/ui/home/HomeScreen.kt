@@ -18,7 +18,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsTopHeight
+import dev.voidapp.ui.components.ReorderGrid
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -137,12 +141,14 @@ fun HomeScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .systemBarsPadding()
+                .navigationBarsPadding()
                 .nestedScroll(scrollReporter)
                 .verticalScroll(scrollState)
                 .padding(horizontal = 18.dp, vertical = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            // Content starts below the status bar, but scrolls UNDER it.
+            Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
             Text(
                 text = "void",
                 color = Color.White,
@@ -210,8 +216,14 @@ fun HomeScreen(
             EditableBox(
                 edit = shortcutEdit,
                 onLongPress = { state.editingBox = "shortcuts" },
+                // Long press inside the grid reorders; the editor opens from the header.
+                longPressEnabled = false,
             ) {
-                ShortcutBox(state = state, onAdd = { showAddSite = true })
+                ShortcutBox(
+                    state = state,
+                    onAdd = { showAddSite = true },
+                    onEdit = { state.editingBox = "shortcuts" },
+                )
             }
 
             Spacer(Modifier.height(10.dp))
@@ -284,6 +296,19 @@ fun HomeScreen(
 
             Spacer(Modifier.height(120.dp))
         }
+
+        // Soft scrim so the status bar icons stay readable over scrolled content.
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .windowInsetsTopHeight(WindowInsets.statusBars)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color.Black.copy(alpha = 0.26f), Color.Transparent),
+                    ),
+                ),
+        )
     }
 
     if (showAddSite) {
@@ -408,6 +433,7 @@ private fun brandGradient(colors: androidx.compose.material3.ColorScheme) = Brus
 private fun EditableBox(
     edit: dev.voidapp.data.BoxEdit,
     onLongPress: () -> Unit,
+    longPressEnabled: Boolean = true,
     content: @Composable () -> Unit,
 ) {
     Box(
@@ -428,12 +454,18 @@ private fun EditableBox(
                     Modifier
                 },
             )
-            .pointerInput(Unit) {
-                detectDragGesturesAfterLongPress(
-                    onDragStart = { onLongPress() },
-                    onDrag = { _, _ -> },
-                )
-            },
+            .then(
+                if (longPressEnabled) {
+                    Modifier.pointerInput(Unit) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = { onLongPress() },
+                            onDrag = { _, _ -> },
+                        )
+                    }
+                } else {
+                    Modifier
+                },
+            ),
     ) {
         content()
     }
@@ -544,24 +576,27 @@ private fun HomeSearchBar(
     }
 }
 
+private sealed interface ShortcutItem {
+    data class Entry(val site: Site) : ShortcutItem
+    data object Add : ShortcutItem
+}
+
 @Composable
 private fun ShortcutBox(
     state: VoidAppState,
     onAdd: () -> Unit,
+    onEdit: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     val shape = RoundedCornerShape(24.dp)
     val sites = state.visibleSites
+    val items: List<ShortcutItem> = sites.map { ShortcutItem.Entry(it) } + ShortcutItem.Add
+    val total = items.size
 
-    // Adaptive columns: as many as needed, but never more than 5, so the grid
-    // never shows an empty row of slots.
-    val columns = when {
-        sites.size + 1 <= 4 -> sites.size + 1
-        sites.size + 1 <= 8 -> 4
-        else -> 5
-    }.coerceAtLeast(1)
-
-    var draggingFrom by remember { mutableIntStateOf(-1) }
+    // At most 5 columns; take the count that leaves the shortest gap in the last
+    // row. The last row is then stretched over the full width, so the box never
+    // has an empty slot.
+    val columns = if (total <= 4) total else listOf(5, 4, 3).minByOrNull { (it - total % it) % it } ?: 5
 
     Column(
         modifier = Modifier
@@ -571,7 +606,18 @@ private fun ShortcutBox(
             .border(1.dp, colors.outline, shape)
             .padding(horizontal = 12.dp, vertical = 14.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 4.dp)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .pointerInput(Unit) {
+                    detectDragGesturesAfterLongPress(
+                        onDragStart = { onEdit() },
+                        onDrag = { _, _ -> },
+                    )
+                }
+                .padding(horizontal = 4.dp),
+        ) {
             Text(
                 text = stringResource(R.string.shortcuts),
                 color = colors.onSurfaceVariant,
@@ -590,35 +636,27 @@ private fun ShortcutBox(
         }
         Spacer(Modifier.height(10.dp))
 
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(columns),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(((sites.size + 1 + columns - 1) / columns * 82).dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
-            userScrollEnabled = false,
-        ) {
-            itemsIndexed(sites, key = { _, site -> site.key }) { index, site ->
-                SiteTile(
-                    site = site,
-                    state = state,
-                    onClick = { state.open(site.url) },
-                    onLongClick = { draggingFrom = index },
-                    onDrag = { delta ->
-                        if (draggingFrom >= 0) {
-                            val target = (draggingFrom + delta).coerceIn(0, sites.lastIndex)
-                            if (target != draggingFrom) {
-                                state.moveSite(draggingFrom, target)
-                                draggingFrom = target
-                            }
-                        }
-                    },
-                    onDragEnd = { draggingFrom = -1 },
+        ReorderGrid(
+            items = items,
+            itemKey = { item ->
+                when (item) {
+                    is ShortcutItem.Entry -> item.site.key
+                    ShortcutItem.Add -> "__add__"
+                }
+            },
+            columns = columns,
+            cellHeight = 78.dp,
+            gap = 2.dp,
+            fixedTail = 1,
+            onMove = { from, to -> state.moveSite(from, to) },
+        ) { item, _, lifted ->
+            when (item) {
+                is ShortcutItem.Entry -> SiteTile(
+                    site = item.site,
+                    lifted = lifted,
+                    onClick = { state.open(item.site.url) },
                 )
-            }
-            item(key = "__add__") {
-                AddTile(onClick = onAdd)
+                ShortcutItem.Add -> AddTile(onClick = onAdd)
             }
         }
     }
@@ -627,39 +665,16 @@ private fun ShortcutBox(
 @Composable
 private fun SiteTile(
     site: Site,
-    state: VoidAppState,
+    lifted: Boolean,
     onClick: () -> Unit,
-    onLongClick: () -> Unit,
-    onDrag: (Int) -> Unit,
-    onDragEnd: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
-    var dragAccum by remember { mutableFloatStateOf(0f) }
-
     Column(
         modifier = Modifier
+            .fillMaxSize()
             .clip(RoundedCornerShape(14.dp))
-            .combinedClickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = ripple(bounded = true, color = colors.onSurface),
-                onLongClick = onLongClick,
-                onClick = onClick,
-            )
-            .pointerInput(site.key) {
-                detectDragGesturesAfterLongPress(
-                    onDrag = { change, amount ->
-                        change.consume()
-                        dragAccum += amount.x
-                        val step = 74f
-                        if (kotlin.math.abs(dragAccum) > step) {
-                            onDrag(if (dragAccum > 0) 1 else -1)
-                            dragAccum = 0f
-                        }
-                    },
-                    onDragEnd = { onDragEnd(); dragAccum = 0f },
-                    onDragCancel = { onDragEnd(); dragAccum = 0f },
-                )
-            }
+            .background(if (lifted) colors.surfaceVariant else Color.Transparent)
+            .clickable(enabled = !lifted, onClick = onClick)
             .padding(vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -668,8 +683,6 @@ private fun SiteTile(
             contentDescription = site.name,
             size = 44.dp,
             circleColor = colors.surfaceVariant,
-            cachedBase64 = state.faviconFor(site.url),
-            onFetched = { encoded -> state.cacheFavicon(site.url, encoded) },
         )
         Spacer(Modifier.height(5.dp))
         Text(
@@ -689,6 +702,7 @@ private fun AddTile(onClick: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     Column(
         modifier = Modifier
+            .fillMaxSize()
             .clip(RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
             .padding(vertical = 6.dp),

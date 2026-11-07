@@ -1,6 +1,18 @@
 package dev.voidapp.ui.island
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.animate
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.layout.layout
+import dev.voidapp.ui.home.ProviderDialog
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.math.roundToInt
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
@@ -108,17 +120,22 @@ fun SearchIsland(
     var expanded by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
     var index by rememberSaveable { mutableIntStateOf(0) }
-    var dragging by remember { mutableStateOf(false) }
-    var dragOffset by remember { mutableFloatStateOf(state.islandOffset) }
+    var dragging by remember { mutableStateOf(false) }   // free move after a long press
+    var swiping by remember { mutableStateOf(false) }    // pulled up towards the tab grid
+    var moveX by remember { mutableFloatStateOf(0f) }
+    var moveY by remember { mutableFloatStateOf(0f) }
+    var swipeY by remember { mutableFloatStateOf(0f) }
     var barMenu by remember { mutableStateOf(false) }
-    var swipeUp by remember { mutableFloatStateOf(0f) }
+    var showProviders by remember { mutableStateOf(false) }
 
     val haptics = LocalHapticFeedback.current
     val focusManager = LocalFocusManager.current
     val density = LocalDensity.current
+    val scope = rememberCoroutineScope()
 
     val panel = state.islandPanel
-    val frozen = expanded || panel != IslandPanel.None || dragging || state.backgroundPickerAt != null
+    val frozen = expanded || panel != IslandPanel.None || dragging || swiping ||
+        state.backgroundPickerAt != null
 
     // ---- slide away on scroll, fade on inactivity -------------------------
     val visibility = remember { Animatable(1f) }
@@ -166,111 +183,186 @@ fun SearchIsland(
     }
 
     val onRight = state.islandOnRight
-    val restingOffset = if (dragging) dragOffset else state.islandOffset
-    val colors = MaterialTheme.colorScheme
-    val onRightOffset = with(density) { ((if (onRight) 1f else -1f) * (1f - visibility.value) * 260.dp.toPx()) }
+    val restingFrac = state.islandOffset.coerceIn(0f, 1f)
+    val hideDistancePx = with(density) { 260.dp.toPx() }
 
     BoxWithConstraints(
         modifier = modifier
             .imePadding()          // the bar rises with the keyboard
             .fillMaxSize(),
     ) {
-        val fullWidth = maxWidth
-        val islandWidth = lerpDp(IslandHeight, fullWidth, progress)
-        val travelPx = with(density) { maxHeight.toPx() }.coerceAtLeast(1f)
+        val maxWpx = constraints.maxWidth.toFloat()
+        val maxHpx = constraints.maxHeight.toFloat()
+        val islandPx = with(density) { IslandHeight.toPx() }
+        // The circle's top edge travels over (height - circle); that is the range
+        // the resting fraction maps onto, so a finger and the circle move 1:1.
+        val freeH = (maxHpx - islandPx).coerceAtLeast(1f)
+        val islandWidth = lerpDp(IslandHeight, maxWidth, progress)
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    translationX = onRightOffset
-                    alpha = if (expanded) 1f else visibility.value
-                },
-            horizontalAlignment = if (onRight) Alignment.End else Alignment.Start,
-        ) {
-            Spacer(Modifier.weight(restingOffset.coerceIn(0.001f, 0.999f)))
-            IslandBody(
-                state = state,
-                expanded = expanded,
-                progress = progress,
-                islandWidth = islandWidth,
-                onRight = onRight,
-                query = query,
-                onQueryChange = { text ->
-                    query = text
-                    index = 0
-                    bump()
-                },
-                index = index,
-                resultCount = state.resultCount(query),
-                panel = panel,
-                onOpenPanel = { state.showPanel(it) },
-                onClosePanel = { state.hidePanel() },
-                sheetItems = state.islandList.ifEmpty { state.results(query) },
-                onSelectedIndex = { i ->
-                    if (state.islandList.isNotEmpty()) {
-                        val pick = state.islandList.getOrNull(i).orEmpty()
-                        val entry = state.history.firstOrNull { it.label == pick }
-                            ?: state.bookmarks.firstOrNull { it.label == pick }
-                        if (entry != null) state.open(entry.url) else state.search(pick)
-                    } else if (state.browserOpen && state.activeTab != null) {
-                        state.openInNewTab(state.resolve(query))
-                    } else {
-                        state.openResult(query, i)
+        val finishFreeDrag: () -> Unit = {
+            if (dragging) {
+                val restLeft = if (onRight) maxWpx - islandPx else 0f
+                val restTop = restingFrac * freeH
+                val leftNow = restLeft + moveX
+                val topNow = restTop + moveY
+                // Snap to whichever edge the circle is closer to.
+                val newOnRight = leftNow + islandPx / 2f > maxWpx / 2f
+                val newFrac = (topNow / freeH).coerceIn(0.02f, 0.98f)
+                val newLeft = if (newOnRight) maxWpx - islandPx else 0f
+                val newTop = newFrac * freeH
+                state.placeIsland(newFrac, newOnRight)
+                val startX = leftNow - newLeft
+                val startY = topNow - newTop
+                moveX = startX
+                moveY = startY
+                dragging = false
+                scope.launch {
+                    animate(0f, 1f, animationSpec = spring(dampingRatio = 0.72f, stiffness = Spring.StiffnessMedium)) { t, _ ->
+                        moveX = startX * (1f - t)
+                        moveY = startY * (1f - t)
                     }
-                    state.hidePanel()
-                },
-                onTapCircle = {
-                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                    bump()
-                    expanded = true
-                },
-                onSearch = {
-                    bump()
-                    if (query.isBlank()) state.open(state.provider.urlFor("")) else state.search(query)
-                },
-                onPrevious = {
-                    val total = state.resultCount(query)
-                    if (total > 0) index = (index - 1 + total) % total
-                },
-                onNext = {
-                    val total = state.resultCount(query)
-                    if (total > 0) index = (index + 1) % total
-                },
-                onLongPressBar = {
-                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                    barMenu = true
-                },
-                onLongPressStart = {
-                    if (!expanded) {
-                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        dragging = true
-                        dragOffset = state.islandOffset
-                    }
-                },
-                onDrag = { dy ->
-                    if (dragging) dragOffset = (dragOffset + dy / travelPx).coerceIn(0.02f, 0.98f)
-                },
-                onDragEnd = {
-                    if (dragging) {
-                        dragging = false
-                        state.placeIsland(dragOffset, state.islandOnRight)
-                    }
-                },
-                onSwipeUp = { amount ->
-                    if (!expanded) {
-                        swipeUp += amount
-                        if (swipeUp < -60f) {
-                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            state.tabGridOpen = true
-                            swipeUp = 0f
-                        }
-                    }
-                },
-                onSwipeEnd = { swipeUp = 0f },
-            )
-            Spacer(Modifier.weight((1f - restingOffset).coerceIn(0.001f, 0.999f)))
+                    moveX = 0f
+                    moveY = 0f
+                }
+            }
         }
+
+        Box(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier
+                    // The bar's bottom edge stays where the circle was; panels grow upward.
+                    .layout { measurable, c ->
+                        val placeable = measurable.measure(c.copy(minWidth = 0, minHeight = 0))
+                        val barTop = (restingFrac * freeH).roundToInt()
+                        val y = (barTop + islandPx.roundToInt() - placeable.height).coerceAtLeast(0)
+                        layout(c.maxWidth, c.maxHeight) { placeable.place(0, y) }
+                    }
+                    .graphicsLayer {
+                        val hide = (if (onRight) 1f else -1f) * (1f - visibility.value) * hideDistancePx
+                        translationX = hide + moveX
+                        translationY = moveY + swipeY
+                        alpha = if (expanded) 1f else visibility.value
+                    },
+            ) {
+                IslandBody(
+                    state = state,
+                    expanded = expanded,
+                    progress = progress,
+                    islandWidth = islandWidth,
+                    onRight = onRight,
+                    query = query,
+                    onQueryChange = { text ->
+                        query = text
+                        index = 0
+                        state.updateSuggestions(text)
+                        bump()
+                    },
+                    index = index,
+                    resultCount = state.resultCount(query),
+                    panel = panel,
+                    onOpenPanel = { state.showPanel(it) },
+                    onClosePanel = { state.hidePanel() },
+                    sheetItems = state.islandList.ifEmpty { state.results(query) },
+                    onSelectedIndex = { i ->
+                        if (state.islandList.isNotEmpty()) {
+                            val pick = state.islandList.getOrNull(i).orEmpty()
+                            val entry = state.history.firstOrNull { it.label == pick }
+                                ?: state.bookmarks.firstOrNull { it.label == pick }
+                            if (entry != null) state.open(entry.url) else state.search(pick)
+                        } else {
+                            state.openResult(query, i)
+                        }
+                        state.hidePanel()
+                        query = ""
+                        expanded = false
+                    },
+                    onTapCircle = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        bump()
+                        expanded = true
+                    },
+                    onSearch = {
+                        bump()
+                        if (query.isBlank()) state.open(state.provider.urlFor("")) else state.search(query)
+                        query = ""
+                        focusManager.clearFocus()
+                        expanded = false
+                    },
+                    onProviderClick = { showProviders = true },
+                    onPrevious = {
+                        val total = state.resultCount(query)
+                        if (total > 0) index = (index - 1 + total) % total
+                    },
+                    onNext = {
+                        val total = state.resultCount(query)
+                        if (total > 0) index = (index + 1) % total
+                    },
+                    onLongPressBar = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        barMenu = true
+                    },
+                    onLongPressStart = {
+                        if (!expanded) {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            moveX = 0f
+                            moveY = 0f
+                            dragging = true
+                        }
+                    },
+                    onFreeDrag = { dx, dy ->
+                        if (dragging) {
+                            val restLeft = if (onRight) maxWpx - islandPx else 0f
+                            val restTop = restingFrac * freeH
+                            moveX = (moveX + dx).coerceIn(-restLeft, maxWpx - islandPx - restLeft)
+                            moveY = (moveY + dy).coerceIn(-restTop, freeH - restTop)
+                        }
+                    },
+                    onFreeEnd = { finishFreeDrag() },
+                    onSwipeStart = {
+                        if (!expanded) {
+                            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            swiping = true
+                            swipeY = 0f
+                            state.beginTabDrag()
+                        }
+                    },
+                    onSwipeDrag = { total ->
+                        if (swiping) {
+                            swipeY = total.coerceIn(-maxHpx, 0f)
+                            // The circle follows the finger; the page shrinks with it.
+                            state.dragTabTo(-swipeY / (maxHpx * 0.45f))
+                        }
+                    },
+                    onSwipeEnd = { velocityY ->
+                        if (swiping) {
+                            val pulled = -swipeY / (maxHpx * 0.45f)
+                            val open = pulled > 0.3f || (velocityY < -1400f && swipeY < -24f)
+                            if (open) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            state.endTabDrag(open)
+                            val from = swipeY
+                            scope.launch {
+                                animate(0f, 1f, animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMedium)) { t, _ ->
+                                    swipeY = from * (1f - t)
+                                }
+                                swipeY = 0f
+                                swiping = false
+                            }
+                        }
+                    },
+                )
+            }
+        }
+    }
+
+    if (showProviders) {
+        ProviderDialog(
+            current = state.provider,
+            onDismiss = { showProviders = false },
+            onPick = {
+                state.selectProvider(it)
+                showProviders = false
+            },
+        )
     }
 
     if (barMenu) {
@@ -283,6 +375,82 @@ fun SearchIsland(
                 expanded = true
             },
         )
+    }
+}
+
+/**
+ * Gestures of the resting circle.
+ *
+ * - tap: left alone, the click handler below takes it;
+ * - long press, then drag: free movement in x and y ([onFreeDrag]);
+ * - drag upwards: pulls up the tab grid ([onSwipeDrag] gets the total travel,
+ *   [onSwipeEnd] the release velocity).
+ *
+ * Everything runs in the Initial pass and consumes the moves, so the circle's
+ * own tap handler never fires at the end of a drag.
+ */
+private fun Modifier.circleGestures(
+    onLongPressStart: () -> Unit,
+    onFreeDrag: (Float, Float) -> Unit,
+    onFreeEnd: () -> Unit,
+    onSwipeStart: () -> Unit,
+    onSwipeDrag: (Float) -> Unit,
+    onSwipeEnd: (Float) -> Unit,
+): Modifier = pointerInput(Unit) {
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false)
+        val slop = viewConfiguration.touchSlop
+
+        // 3 = ignore (tap / sideways), 2 = pull up, null = held still -> long press
+        val decision: Int? = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+            var out = 0
+            while (out == 0) {
+                val event = awaitPointerEvent(PointerEventPass.Initial)
+                val change = event.changes.firstOrNull { it.id == down.id }
+                out = when {
+                    change == null || change.isConsumed || !change.pressed -> 3
+                    else -> {
+                        val d = change.position - down.position
+                        if (d.getDistance() > slop) {
+                            if (d.y < 0f && abs(d.y) > abs(d.x)) 2 else 3
+                        } else {
+                            0
+                        }
+                    }
+                }
+            }
+            out
+        }
+
+        when (decision) {
+            null -> {
+                onLongPressStart()
+                while (true) {
+                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                    val delta = change.positionChange()
+                    change.consume()
+                    if (!change.pressed) break
+                    onFreeDrag(delta.x, delta.y)
+                }
+                onFreeEnd()
+            }
+            2 -> {
+                onSwipeStart()
+                val tracker = VelocityTracker()
+                tracker.addPosition(down.uptimeMillis, down.position)
+                while (true) {
+                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                    tracker.addPosition(change.uptimeMillis, change.position)
+                    change.consume()
+                    if (!change.pressed) break
+                    onSwipeDrag((change.position.y - down.position.y).coerceAtMost(0f))
+                }
+                onSwipeEnd(tracker.calculateVelocity().y)
+            }
+            else -> Unit
+        }
     }
 }
 
@@ -304,14 +472,16 @@ private fun IslandBody(
     onSelectedIndex: (Int) -> Unit,
     onTapCircle: () -> Unit,
     onSearch: () -> Unit,
+    onProviderClick: () -> Unit,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
     onLongPressBar: () -> Unit,
     onLongPressStart: () -> Unit,
-    onDrag: (Float) -> Unit,
-    onDragEnd: () -> Unit,
-    onSwipeUp: (Float) -> Unit,
-    onSwipeEnd: () -> Unit,
+    onFreeDrag: (Float, Float) -> Unit,
+    onFreeEnd: () -> Unit,
+    onSwipeStart: () -> Unit,
+    onSwipeDrag: (Float) -> Unit,
+    onSwipeEnd: (Float) -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
     val haptics = LocalHapticFeedback.current
@@ -362,25 +532,14 @@ private fun IslandBody(
                 )
                 .then(
                     if (!expanded) {
-                        Modifier
-                            .pointerInput(Unit) {
-                                detectDragGesturesAfterLongPress(
-                                    onDragStart = { onLongPressStart() },
-                                    onDrag = { change, amount ->
-                                        change.consume()
-                                        onDrag(amount.y)
-                                    },
-                                    onDragEnd = { onDragEnd() },
-                                    onDragCancel = { onDragEnd() },
-                                )
-                            }
-                            .pointerInput(Unit) {
-                                detectVerticalDragGestures(
-                                    onVerticalDrag = { _, amount -> onSwipeUp(amount) },
-                                    onDragEnd = { onSwipeEnd() },
-                                    onDragCancel = { onSwipeEnd() },
-                                )
-                            }
+                        Modifier.circleGestures(
+                            onLongPressStart = onLongPressStart,
+                            onFreeDrag = onFreeDrag,
+                            onFreeEnd = onFreeEnd,
+                            onSwipeStart = onSwipeStart,
+                            onSwipeDrag = onSwipeDrag,
+                            onSwipeEnd = onSwipeEnd,
+                        )
                     } else {
                         Modifier.pointerInput(Unit) {
                             detectDragGesturesAfterLongPress(
@@ -426,6 +585,8 @@ private fun IslandBody(
                             query = query,
                             onQueryChange = onQueryChange,
                             state = state,
+                            onProviderClick = onProviderClick,
+                            onSubmit = onSearch,
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxHeight(),
@@ -498,6 +659,8 @@ private fun IslandBody(
                             query = query,
                             onQueryChange = onQueryChange,
                             state = state,
+                            onProviderClick = onProviderClick,
+                            onSubmit = onSearch,
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxHeight(),
@@ -515,10 +678,11 @@ private fun BarSearchField(
     query: String,
     onQueryChange: (String) -> Unit,
     state: VoidAppState,
+    onProviderClick: () -> Unit,
+    onSubmit: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val colors = MaterialTheme.colorScheme
-    val focusManager = LocalFocusManager.current
     val pageUrl = if (state.browserOpen) state.currentUrl else ""
     val hint = when {
         pageUrl.isNotBlank() -> pageUrl
@@ -533,7 +697,7 @@ private fun BarSearchField(
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = ripple(bounded = true),
-                onClick = { focusManager.clearFocus() },
+                onClick = onProviderClick,
             )
             .padding(2.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -543,6 +707,7 @@ private fun BarSearchField(
             contentDescription = state.provider.label,
             size = 20.dp,
             circleColor = Color.Transparent,
+            fallbackSize = 10.sp,
         )
         Icon(
             imageVector = Lucide.ChevronDown,
@@ -571,7 +736,7 @@ private fun BarSearchField(
             imeAction = androidx.compose.ui.text.input.ImeAction.Search,
         ),
         keyboardActions = androidx.compose.foundation.text.KeyboardActions(
-            onSearch = { focusManager.clearFocus() },
+            onSearch = { onSubmit() },
         ),
         decorationBox = { inner ->
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.CenterStart) {

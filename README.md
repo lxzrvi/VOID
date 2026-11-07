@@ -116,3 +116,29 @@ that needs to change.
 ```
 
 JDK 17 and Android SDK platform 37 are required.
+
+
+---
+
+## 0.4.0 - browser, tabs, icons
+
+* **Status bar:** pages and Home are edge to edge. Content starts *below* the
+  status bar and scrolls *under* it; a scrim tinted with the page's own colour
+  softens the edge and the icons flip light/dark to match. No black bar, no
+  navigation-bar scrim.
+* **Circle:** long-press then drag moves it freely (x and y, 1:1 with the finger)
+  and it springs to the nearest edge. Pull it up and it follows the finger while
+  the current page shrinks into its card; release past the threshold (or flick)
+  to open the tab grid, otherwise it springs back.
+* **Tabs:** one WebView per tab (no reload on switch), Home is the first card,
+  live card for the current page, snapshots for the rest, long-press to
+  rearrange, tabs are restored on the next launch.
+* **Icons:** shortcut and search-provider icons are cached on disk and decoded
+  before the first frame; an icon that is already stored is never fetched again.
+* **Boxes:** shortcuts and tools use a reorder grid whose last row stretches, so
+  there are no empty cells; long-press drag rearranges them.
+* **Browser:** find in page, downloads, file upload, camera / mic / location
+  prompts, fullscreen video, JS dialogs, pop-ups open as tabs, external app
+  links, print / save as PDF, translate, ad & tracker blocking, dark web pages,
+  live search suggestions, full history & bookmarks screen, proper back
+  navigation, per-tab desktop mode.

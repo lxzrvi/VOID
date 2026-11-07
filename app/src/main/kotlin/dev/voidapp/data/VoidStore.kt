@@ -35,6 +35,18 @@ class VoidStore(context: Context) {
         get() = prefs.getBoolean("dark_theme", true)
         set(value) = prefs.edit { putBoolean("dark_theme", value) }
 
+    var blockAds: Boolean
+        get() = prefs.getBoolean("block_ads", true)
+        set(value) = prefs.edit { putBoolean("block_ads", value) }
+
+    var webDark: Boolean
+        get() = prefs.getBoolean("web_dark", false)
+        set(value) = prefs.edit { putBoolean("web_dark", value) }
+
+    var suggestions: Boolean
+        get() = prefs.getBoolean("suggestions", true)
+        set(value) = prefs.edit { putBoolean("suggestions", value) }
+
     // ---- search -----------------------------------------------------------
     var provider: SearchProvider
         get() = SearchProvider.fromName(prefs.getString("provider", null))
@@ -162,6 +174,29 @@ class VoidStore(context: Context) {
 
     fun writeStringList(key: String, values: List<String>) = prefs.edit {
         putString(key, JSONArray(values).toString())
+    }
+
+    // ---- open tabs (restored on the next launch) --------------------------
+    fun readTabs(): List<SavedTab> = runCatching {
+        val array = JSONArray(prefs.getString("tabs", "[]"))
+        (0 until array.length()).map { i ->
+            val obj = array.getJSONObject(i)
+            SavedTab(obj.optString("url"), obj.optString("title"), obj.optBoolean("desktop", false))
+        }.filter { it.url.isNotBlank() }
+    }.getOrDefault(emptyList())
+
+    var activeTabIndex: Int
+        get() = prefs.getInt("tab_active", 0)
+        set(value) = prefs.edit { putInt("tab_active", value) }
+
+    fun writeTabs(tabs: List<SavedTab>) = prefs.edit {
+        val array = JSONArray()
+        tabs.forEach {
+            array.put(
+                JSONObject().put("url", it.url).put("title", it.title).put("desktop", it.desktop),
+            )
+        }
+        putString("tabs", array.toString())
     }
 
     // ---- bookmarks / history ---------------------------------------------
