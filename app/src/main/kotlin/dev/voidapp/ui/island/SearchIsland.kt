@@ -60,6 +60,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp as lerpDp
 import dev.voidapp.R
+import dev.voidapp.ui.IslandPanel
 import dev.voidapp.ui.VoidAppState
 import dev.voidapp.ui.components.AppMark
 import dev.voidapp.ui.icons.Lucide
@@ -189,10 +190,12 @@ fun SearchIsland(
                     if (query.isBlank()) state.open(state.provider.urlFor("")) else state.search(query)
                 },
                 onPrevious = {
-                    if (resultCount(query) > 0) index = (index - 1 + resultCount(query)) % resultCount(query)
+                    val total = state.resultCount(query)
+                    if (total > 0) index = (index - 1 + total) % total
                 },
                 onNext = {
-                    if (resultCount(query) > 0) index = (index + 1) % resultCount(query)
+                    val total = state.resultCount(query)
+                    if (total > 0) index = (index + 1) % total
                 },
                 onClear = {
                     query = ""
@@ -348,6 +351,7 @@ private fun IslandBody(
                         SearchField(
                             query = query,
                             onQueryChange = onQueryChange,
+                            provider = state.provider,
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxHeight(),
@@ -406,6 +410,7 @@ private fun IslandBody(
                         SearchField(
                             query = query,
                             onQueryChange = onQueryChange,
+                            provider = state.provider,
                             modifier = Modifier
                                 .weight(1f)
                                 .fillMaxHeight(),
