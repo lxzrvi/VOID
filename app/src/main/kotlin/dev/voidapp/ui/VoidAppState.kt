@@ -102,7 +102,7 @@ class VoidAppState(
     fun results(query: String): List<String> {
         if (query.isBlank()) return emptyList()
         val matching = index.filter { it.contains(query, ignoreCase = true) }
-        val withProvider = ("${provider.label}: $query") + matching
+        val withProvider = listOf("${provider.label}: $query") + matching
         return withProvider.distinct().take(9)
     }
 

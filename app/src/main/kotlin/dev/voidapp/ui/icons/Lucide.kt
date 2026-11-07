@@ -27,90 +27,123 @@ object Lucide {
 
     val ArrowLeft: ImageVector by lazy {
         lucideIcon("ArrowLeft") {
+            lucidePath {
             moveToRelative(12f, 19f)
             lineToRelative(-7f, -7f)
             lineToRelative(7f, -7f)
+            }
+            lucidePath {
             moveTo(19f, 12f)
             horizontalLineTo(5f)
+            }
         }
     }
 
     val ArrowRight: ImageVector by lazy {
         lucideIcon("ArrowRight") {
+            lucidePath {
             moveTo(5f, 12f)
             horizontalLineToRelative(14f)
+            }
+            lucidePath {
             moveToRelative(12f, 5f)
             lineToRelative(7f, 7f)
             lineToRelative(-7f, 7f)
+            }
         }
     }
 
     val ChevronLeft: ImageVector by lazy {
         lucideIcon("ChevronLeft") {
+            lucidePath {
             moveToRelative(15f, 18f)
             lineToRelative(-6f, -6f)
             lineToRelative(6f, -6f)
+            }
         }
     }
 
     val ChevronRight: ImageVector by lazy {
         lucideIcon("ChevronRight") {
+            lucidePath {
             moveToRelative(9f, 18f)
             lineToRelative(6f, -6f)
             lineToRelative(-6f, -6f)
+            }
         }
     }
 
     val Ellipsis: ImageVector by lazy {
         lucideIcon("Ellipsis") {
+            lucidePath {
             moveTo(11.0f, 12.0f)
             arcToRelative(1.0f, 1.0f, 0f, true, false, 2.0f, 0f)
             arcToRelative(1.0f, 1.0f, 0f, true, false, -2.0f, 0f)
+            }
+            lucidePath {
             moveTo(18.0f, 12.0f)
             arcToRelative(1.0f, 1.0f, 0f, true, false, 2.0f, 0f)
             arcToRelative(1.0f, 1.0f, 0f, true, false, -2.0f, 0f)
+            }
+            lucidePath {
             moveTo(4.0f, 12.0f)
             arcToRelative(1.0f, 1.0f, 0f, true, false, 2.0f, 0f)
             arcToRelative(1.0f, 1.0f, 0f, true, false, -2.0f, 0f)
+            }
         }
     }
 
     val X: ImageVector by lazy {
         lucideIcon("X") {
+            lucidePath {
             moveTo(18f, 6f)
             lineTo(6f, 18f)
+            }
+            lucidePath {
             moveToRelative(6f, 6f)
             lineToRelative(12f, 12f)
+            }
         }
     }
 
     val Search: ImageVector by lazy {
         lucideIcon("Search") {
+            lucidePath {
             moveToRelative(21f, 21f)
             lineToRelative(-4.34f, -4.34f)
+            }
+            lucidePath {
             moveTo(3.0f, 11.0f)
             arcToRelative(8.0f, 8.0f, 0f, true, false, 16.0f, 0f)
             arcToRelative(8.0f, 8.0f, 0f, true, false, -16.0f, 0f)
+            }
         }
     }
 
     val Plus: ImageVector by lazy {
         lucideIcon("Plus") {
+            lucidePath {
             moveTo(5f, 12f)
             horizontalLineToRelative(14f)
+            }
+            lucidePath {
             moveTo(12f, 5f)
             verticalLineToRelative(14f)
+            }
         }
     }
 
     val House: ImageVector by lazy {
         lucideIcon("House") {
+            lucidePath {
             moveTo(15f, 21f)
             verticalLineToRelative(-8f)
             arcToRelative(1f, 1f, 0f, false, false, -1f, -1f)
             horizontalLineToRelative(-4f)
             arcToRelative(1f, 1f, 0f, false, false, -1f, 1f)
             verticalLineToRelative(8f)
+            }
+            lucidePath {
             moveTo(3f, 10f)
             arcToRelative(2f, 2f, 0f, false, true, .709f, -1.528f)
             lineToRelative(7f, -6f)
@@ -122,41 +155,57 @@ object Lucide {
             horizontalLineTo(5f)
             arcToRelative(2f, 2f, 0f, false, true, -2f, -2f)
             close()
+            }
         }
     }
 
     val RotateCw: ImageVector by lazy {
         lucideIcon("RotateCw") {
+            lucidePath {
             moveTo(21f, 12f)
             arcToRelative(9f, 9f, 0f, true, true, -9f, -9f)
             curveToRelative(2.52f, 0f, 4.93f, 1f, 6.74f, 2.74f)
             lineTo(21f, 8f)
+            }
+            lucidePath {
             moveTo(21f, 3f)
             verticalLineToRelative(5f)
             horizontalLineToRelative(-5f)
+            }
         }
     }
 
     val Share2: ImageVector by lazy {
         lucideIcon("Share2") {
+            lucidePath {
             moveTo(15.0f, 5.0f)
             arcToRelative(3.0f, 3.0f, 0f, true, false, 6.0f, 0f)
             arcToRelative(3.0f, 3.0f, 0f, true, false, -6.0f, 0f)
+            }
+            lucidePath {
             moveTo(3.0f, 12.0f)
             arcToRelative(3.0f, 3.0f, 0f, true, false, 6.0f, 0f)
             arcToRelative(3.0f, 3.0f, 0f, true, false, -6.0f, 0f)
+            }
+            lucidePath {
             moveTo(15.0f, 19.0f)
             arcToRelative(3.0f, 3.0f, 0f, true, false, 6.0f, 0f)
             arcToRelative(3.0f, 3.0f, 0f, true, false, -6.0f, 0f)
+            }
+            lucidePath {
             moveTo(8.59f, 13.51f)
             lineTo(15.42f, 17.49f)
+            }
+            lucidePath {
             moveTo(15.41f, 6.51f)
             lineTo(8.59f, 10.49f)
+            }
         }
     }
 
     val Copy: ImageVector by lazy {
         lucideIcon("Copy") {
+            lucidePath {
             moveTo(10.0f, 8.0f)
             horizontalLineToRelative(10.0f)
             arcToRelative(2.0f, 2.0f, 0f, false, true, 2.0f, 2.0f)
@@ -167,22 +216,30 @@ object Lucide {
             verticalLineToRelative(-10.0f)
             arcToRelative(2.0f, 2.0f, 0f, false, true, 2.0f, -2.0f)
             close()
+            }
+            lucidePath {
             moveTo(4f, 16f)
             curveToRelative(-1.1f, 0f, -2f, -.9f, -2f, -2f)
             verticalLineTo(4f)
             curveToRelative(0f, -1.1f, .9f, -2f, 2f, -2f)
             horizontalLineToRelative(10f)
             curveToRelative(1.1f, 0f, 2f, .9f, 2f, 2f)
+            }
         }
     }
 
     val ExternalLink: ImageVector by lazy {
         lucideIcon("ExternalLink") {
+            lucidePath {
             moveTo(15f, 3f)
             horizontalLineToRelative(6f)
             verticalLineToRelative(6f)
+            }
+            lucidePath {
             moveTo(10f, 14f)
             lineTo(21f, 3f)
+            }
+            lucidePath {
             moveTo(18f, 13f)
             verticalLineToRelative(6f)
             arcToRelative(2f, 2f, 0f, false, true, -2f, 2f)
@@ -191,11 +248,13 @@ object Lucide {
             verticalLineTo(8f)
             arcToRelative(2f, 2f, 0f, false, true, 2f, -2f)
             horizontalLineToRelative(6f)
+            }
         }
     }
 
     val Monitor: ImageVector by lazy {
         lucideIcon("Monitor") {
+            lucidePath {
             moveTo(4.0f, 3.0f)
             horizontalLineToRelative(16.0f)
             arcToRelative(2.0f, 0.0f, 0f, false, true, 2.0f, 0.0f)
@@ -206,30 +265,42 @@ object Lucide {
             verticalLineToRelative(-14.0f)
             arcToRelative(2.0f, 0.0f, 0f, false, true, 2.0f, -0.0f)
             close()
+            }
+            lucidePath {
             moveTo(8f, 21f)
             lineTo(16f, 21f)
+            }
+            lucidePath {
             moveTo(12f, 17f)
             lineTo(12f, 21f)
+            }
         }
     }
 
     val History: ImageVector by lazy {
         lucideIcon("History") {
+            lucidePath {
             moveTo(3f, 12f)
             arcToRelative(9f, 9f, 0f, true, false, 9f, -9f)
             arcToRelative(9.75f, 9.75f, 0f, false, false, -6.74f, 2.74f)
             lineTo(3f, 8f)
+            }
+            lucidePath {
             moveTo(3f, 3f)
             verticalLineToRelative(5f)
             horizontalLineToRelative(5f)
+            }
+            lucidePath {
             moveTo(12f, 7f)
             verticalLineToRelative(5f)
             lineToRelative(4f, 2f)
+            }
         }
     }
 
     val Bookmark: ImageVector by lazy {
         lucideIcon("Bookmark") {
+            lucidePath {
             moveTo(17f, 3f)
             arcToRelative(2f, 2f, 0f, false, true, 2f, 2f)
             verticalLineToRelative(15f)
@@ -241,11 +312,13 @@ object Lucide {
             verticalLineTo(5f)
             arcToRelative(2f, 2f, 0f, false, true, 2f, -2f)
             close()
+            }
         }
     }
 
     val Settings: ImageVector by lazy {
         lucideIcon("Settings") {
+            lucidePath {
             moveTo(9.671f, 4.136f)
             arcToRelative(2.34f, 2.34f, 0f, false, true, 4.659f, 0f)
             arcToRelative(2.34f, 2.34f, 0f, false, false, 3.319f, 1.915f)
@@ -259,37 +332,51 @@ object Lucide {
             arcToRelative(2.34f, 2.34f, 0f, false, false, 0f, -3.831f)
             arcTo(2.34f, 2.34f, 0f, false, true, 6.35f, 6.051f)
             arcToRelative(2.34f, 2.34f, 0f, false, false, 3.319f, -1.915f)
+            }
+            lucidePath {
             moveTo(9.0f, 12.0f)
             arcToRelative(3.0f, 3.0f, 0f, true, false, 6.0f, 0f)
             arcToRelative(3.0f, 3.0f, 0f, true, false, -6.0f, 0f)
+            }
         }
     }
 
     val Trash2: ImageVector by lazy {
         lucideIcon("Trash2") {
+            lucidePath {
             moveTo(10f, 11f)
             verticalLineToRelative(6f)
+            }
+            lucidePath {
             moveTo(14f, 11f)
             verticalLineToRelative(6f)
+            }
+            lucidePath {
             moveTo(19f, 6f)
             verticalLineToRelative(14f)
             arcToRelative(2f, 2f, 0f, false, true, -2f, 2f)
             horizontalLineTo(7f)
             arcToRelative(2f, 2f, 0f, false, true, -2f, -2f)
             verticalLineTo(6f)
+            }
+            lucidePath {
             moveTo(3f, 6f)
             horizontalLineToRelative(18f)
+            }
+            lucidePath {
             moveTo(8f, 6f)
             verticalLineTo(4f)
             arcToRelative(2f, 2f, 0f, false, true, 2f, -2f)
             horizontalLineToRelative(4f)
             arcToRelative(2f, 2f, 0f, false, true, 2f, 2f)
             verticalLineToRelative(2f)
+            }
         }
     }
 
     val Files: ImageVector by lazy {
         lucideIcon("Files") {
+            lucidePath {
             moveTo(15f, 2f)
             horizontalLineToRelative(-4f)
             arcToRelative(2f, 2f, 0f, false, false, -2f, 2f)
@@ -298,6 +385,8 @@ object Lucide {
             horizontalLineToRelative(8f)
             arcToRelative(2f, 2f, 0f, false, false, 2f, -2f)
             verticalLineTo(8f)
+            }
+            lucidePath {
             moveTo(16.706f, 2.706f)
             arcTo(2.4f, 2.4f, 0f, false, false, 15f, 2f)
             verticalLineToRelative(5f)
@@ -305,51 +394,69 @@ object Lucide {
             horizontalLineToRelative(5f)
             arcToRelative(2.4f, 2.4f, 0f, false, false, -.706f, -1.706f)
             close()
+            }
+            lucidePath {
             moveTo(5f, 7f)
             arcToRelative(2f, 2f, 0f, false, false, -2f, 2f)
             verticalLineToRelative(11f)
             arcToRelative(2f, 2f, 0f, false, false, 2f, 2f)
             horizontalLineToRelative(8f)
             arcToRelative(2f, 2f, 0f, false, false, 1.732f, -1f)
+            }
         }
     }
 
     val Globe: ImageVector by lazy {
         lucideIcon("Globe") {
+            lucidePath {
             moveTo(2.0f, 12.0f)
             arcToRelative(10.0f, 10.0f, 0f, true, false, 20.0f, 0f)
             arcToRelative(10.0f, 10.0f, 0f, true, false, -20.0f, 0f)
+            }
+            lucidePath {
             moveTo(12f, 2f)
             arcToRelative(14.5f, 14.5f, 0f, false, false, 0f, 20f)
             arcToRelative(14.5f, 14.5f, 0f, false, false, 0f, -20f)
+            }
+            lucidePath {
             moveTo(2f, 12f)
             horizontalLineToRelative(20f)
+            }
         }
     }
 
     val Clock: ImageVector by lazy {
         lucideIcon("Clock") {
+            lucidePath {
             moveTo(2.0f, 12.0f)
             arcToRelative(10.0f, 10.0f, 0f, true, false, 20.0f, 0f)
             arcToRelative(10.0f, 10.0f, 0f, true, false, -20.0f, 0f)
+            }
+            lucidePath {
             moveTo(12f, 6f)
             verticalLineToRelative(6f)
             lineToRelative(4f, 2f)
+            }
         }
     }
 
     val ArrowUpRight: ImageVector by lazy {
         lucideIcon("ArrowUpRight") {
+            lucidePath {
             moveTo(7f, 7f)
             horizontalLineToRelative(10f)
             verticalLineToRelative(10f)
+            }
+            lucidePath {
             moveTo(7f, 17f)
             lineTo(17f, 7f)
+            }
         }
     }
 
     val Star: ImageVector by lazy {
         lucideIcon("Star") {
+            lucidePath {
             moveTo(11.525f, 2.295f)
             arcToRelative(.53f, .53f, 0f, false, true, .95f, 0f)
             lineToRelative(2.31f, 4.679f)
@@ -371,64 +478,89 @@ object Lucide {
             lineToRelative(5.165f, -.755f)
             arcToRelative(2.122f, 2.122f, 0f, false, false, 1.597f, -1.16f)
             close()
+            }
         }
     }
 
     val Download: ImageVector by lazy {
         lucideIcon("Download") {
+            lucidePath {
             moveTo(12f, 15f)
             verticalLineTo(3f)
+            }
+            lucidePath {
             moveTo(21f, 15f)
             verticalLineToRelative(4f)
             arcToRelative(2f, 2f, 0f, false, true, -2f, 2f)
             horizontalLineTo(5f)
             arcToRelative(2f, 2f, 0f, false, true, -2f, -2f)
             verticalLineToRelative(-4f)
+            }
+            lucidePath {
             moveToRelative(7f, 10f)
             lineToRelative(5f, 5f)
             lineToRelative(5f, -5f)
+            }
         }
     }
 
     val Type: ImageVector by lazy {
         lucideIcon("Type") {
+            lucidePath {
             moveTo(12f, 4f)
             verticalLineToRelative(16f)
+            }
+            lucidePath {
             moveTo(4f, 7f)
             verticalLineTo(5f)
             arcToRelative(1f, 1f, 0f, false, true, 1f, -1f)
             horizontalLineToRelative(14f)
             arcToRelative(1f, 1f, 0f, false, true, 1f, 1f)
             verticalLineToRelative(2f)
+            }
+            lucidePath {
             moveTo(9f, 20f)
             horizontalLineToRelative(6f)
+            }
         }
     }
 
     val Maximize2: ImageVector by lazy {
         lucideIcon("Maximize2") {
+            lucidePath {
             moveTo(15f, 3f)
             horizontalLineToRelative(6f)
             verticalLineToRelative(6f)
+            }
+            lucidePath {
             moveToRelative(21f, 3f)
             lineToRelative(-7f, 7f)
+            }
+            lucidePath {
             moveToRelative(3f, 21f)
             lineToRelative(7f, -7f)
+            }
+            lucidePath {
             moveTo(9f, 21f)
             horizontalLineTo(3f)
             verticalLineToRelative(-6f)
+            }
         }
     }
 
     val CornerDownLeft: ImageVector by lazy {
         lucideIcon("CornerDownLeft") {
+            lucidePath {
             moveTo(20f, 4f)
             verticalLineToRelative(7f)
             arcToRelative(4f, 4f, 0f, false, true, -4f, 4f)
             horizontalLineTo(4f)
+            }
+            lucidePath {
             moveToRelative(9f, 10f)
             lineToRelative(-5f, 5f)
             lineToRelative(5f, 5f)
+            }
         }
     }
 

@@ -72,7 +72,7 @@ for name in ICONS:
     calls = re.findall(r"lucidePath\(strokeWidth\) \{(.*?)\n\s*\}", text, re.S)
     if not calls:
         raise SystemExit(f"no paths parsed for {name}")
-    body = "\n".join(calls)
+    body = "\n".join("lucidePath {\n" + c + "\n}" for c in calls)
     prop = name[0].upper() + name[1:]
     blocks.append(
         f"\n    val {prop}: ImageVector by lazy {{\n"
