@@ -1,7 +1,7 @@
 package dev.voidapp.ui.home
 
 import androidx.activity.compose.BackHandler
-import coil.compose.AsyncImage
+import coil3.compose.AsyncImage
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
