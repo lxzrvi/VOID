@@ -87,3 +87,14 @@ if errors:
     print("\n".join(f"FAIL {e}" for e in errors))
     sys.exit(1)
 print("kotlin sources look consistent")
+
+# ---- strings.xml: no duplicate keys (aapt rejects them) ----
+import re as _re
+_strings = ROOT / "app/src/main/res/values/strings.xml"
+if _strings.exists():
+    _names = _re.findall(r'name="([A-Za-z_0-9]+)"', _strings.read_text())
+    _dups = sorted({n for n in _names if _names.count(n) > 1})
+    for _d in _dups:
+        print(f"FAIL duplicate <string> {_d}")
+    if not _dups:
+        print("strings.xml has no duplicate keys")
