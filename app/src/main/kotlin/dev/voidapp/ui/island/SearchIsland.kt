@@ -383,7 +383,10 @@ private fun IslandBody(
                             }
                     } else {
                         Modifier.pointerInput(Unit) {
-                            detectDragGesturesAfterLongPress(onDragStart = { onLongPressBar() })
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = { onLongPressBar() },
+                                onDrag = { _, _ -> },
+                            )
                         }
                     },
                 ),

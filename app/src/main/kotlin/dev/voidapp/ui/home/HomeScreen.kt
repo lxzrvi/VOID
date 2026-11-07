@@ -1,6 +1,7 @@
 package dev.voidapp.ui.home
 
 import androidx.activity.compose.BackHandler
+import coil.compose.AsyncImage
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -126,6 +128,7 @@ fun HomeScreen(
                     onDragStart = { offset ->
                         state.backgroundPickerAt = offset.x / size.width to offset.y / size.height
                     },
+                    onDrag = { _, _ -> },
                 )
             },
     ) {
@@ -357,7 +360,7 @@ private fun BackgroundLayer(background: Background) {
         Background.Kind.Image -> {
             val uri = background.imageUri
             if (uri != null) {
-                coil.compose.AsyncImage(
+                AsyncImage(
                     model = uri,
                     contentDescription = null,
                     contentScale = androidx.compose.ui.layout.ContentScale.Crop,
@@ -426,7 +429,10 @@ private fun EditableBox(
                 },
             )
             .pointerInput(Unit) {
-                detectDragGesturesAfterLongPress(onDragStart = { onLongPress() })
+                detectDragGesturesAfterLongPress(
+                    onDragStart = { onLongPress() },
+                    onDrag = { _, _ -> },
+                )
             },
     ) {
         content()
