@@ -19,7 +19,7 @@ DRAWABLE = RES / "drawable"
 VECTOR_TAGS = {"vector", "animated-vector", "animated-selector", "selector", "layer-list", "ripple"}
 ALLOWED_ROOTS = VECTOR_TAGS | {"shape", "inset", "clip", "bitmap", "nine-patch", "level-list",
                                "transition", "adaptive-icon", "animation-list", "color", "scale",
-                               "animated-rotate"}
+                               "animated-rotate", "font-family"}
 
 errors = []
 checked = 0
