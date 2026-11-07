@@ -32,6 +32,9 @@ class VoidAndroidComposePlugin : Plugin<Project> {
 
                 add("implementation", library("androidx-activity-compose"))
                 add("implementation", library("androidx-lifecycle-runtime"))
+                add("implementation", library("androidx-webkit"))
+                add("implementation", library("androidx-splashscreen"))
+                add("implementation", library("kotlinx-coroutines-android"))
             }
         }
     }
