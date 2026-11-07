@@ -37,7 +37,7 @@ for path in files:
     rel = path.relative_to(ROOT)
     text = path.read_text()
 
-    if text.count("^package ") and len(re.findall(r"^package ", text, re.M)) != 1:
+    if len(re.findall(r"^package ", text, re.M)) != 1:
         errors.append(f"{rel}: more than one package declaration")
 
     # brace balance

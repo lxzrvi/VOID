@@ -233,8 +233,9 @@ fun BrowserScreen(
                 }
 
                 override fun savePage() {
-                    // Best effort: the page is kept in the WebView cache for offline.
-                    view.saveWebArchive(null)
+                    // Saved into the app cache dir; the filesystem path is required.
+                    val file = java.io.File(view.context.cacheDir, "void-page-${System.currentTimeMillis()}.mht")
+                    view.saveWebArchive(file.absolutePath)
                 }
 
                 override fun printPage() {
