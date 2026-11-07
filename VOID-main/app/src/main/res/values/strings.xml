@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">VOID</string>
+
+    <string name="search_hint">Search</string>
+    <string name="search_on">Search %1$s</string>
+    <string name="action_open_search">Open search</string>
+    <string name="action_close_search">Close search</string>
+    <string name="action_previous">Previous</string>
+    <string name="action_next">Next</string>
+    <string name="action_more">More</string>
+    <string name="action_clear">Clear</string>
+    <string name="result_counter">%1$d/%2$d</string>
+
+    <!-- Home -->
+    <string name="today_event">Today</string>
+    <string name="event_tap_hint">Tap for today\'s event</string>
+    <string name="event_loading">Loading today\'s event…</string>
+    <string name="event_unavailable">No event available — tap to retry</string>
+    <string name="event_source">Wikipedia · On this day</string>
+    <string name="shortcuts">Shortcuts</string>
+    <string name="action_add_site">Add website</string>
+    <string name="add_site_title">Add website</string>
+    <string name="add_site_url">Website address</string>
+    <string name="add_site_name">Name (optional)</string>
+    <string name="add_site_confirm">Add</string>
+    <string name="add_site_cancel">Cancel</string>
+    <string name="site_open">Open %1$s</string>
+    <string name="site_remove">Remove %1$s</string>
+
+    <!-- Browser -->
+    <string name="browser_url_hint">Search or type a URL</string>
+    <string name="browser_back">Back</string>
+    <string name="browser_forward">Forward</string>
+    <string name="browser_reload">Reload</string>
+    <string name="browser_home">Home</string>
+    <string name="browser_share">Share</string>
+    <string name="browser_copy">Copy link</string>
+    <string name="browser_open_external">Open in browser</string>
+    <string name="browser_desktop">Desktop site</string>
+    <string name="browser_history">History</string>
+    <string name="browser_bookmarks">Bookmarks</string>
+    <string name="browser_bookmark_add">Bookmark this page</string>
+    <string name="browser_settings">Settings</string>
+    <string name="browser_clear_data">Clear data</string>
+    <string name="browser_tools">Tools</string>
+    <string name="browser_close">Close browser</string>
+    <string name="browser_exit">Exit</string>
+    <string name="browser_tabs">Tabs</string>
+    <string name="browser_zoom_in">Zoom in</string>
+    <string name="browser_zoom_out">Zoom out</string>
+    <string name="browser_find">Find in page</string>
+    <string name="browser_find_hint">Find in page</string>
+    <string name="browser_save">Save page</string>
+    <string name="browser_print">Print</string>
+    <string name="browser_copied">Copied</string>
+    <string name="browser_no_history">Nothing here yet</string>
+    <string name="browser_error">This page could not be loaded</string>
+
+    <!-- Navigator sheet -->
+    <string name="navigator_title">Jump to result</string>
+
+    <!-- Exit -->
+    <string name="exit_title">Leave VOID?</string>
+    <string name="exit_message">Press back once more to close the app.</string>
+    <string name="exit_confirm">Close</string>
+    <string name="exit_cancel">Stay</string>
+
+    <!-- Notes -->
+    <string name="notes">Notes</string>
+    <string name="notes_hint">Write a note…</string>
+    <string name="notes_save">Save note</string>
+    <string name="notes_empty">No notes yet</string>
+    <string name="notes_add">Add note</string>
+
+    <!-- Appearance / box editor -->
+    <string name="appearance">Appearance</string>
+    <string name="box_appearance">Box appearance</string>
+    <string name="bg_change">Change background</string>
+    <string name="bg_gradient">Gradient</string>
+    <string name="bg_image">Image</string>
+    <string name="bg_brand">Brand</string>
+    <string name="bg_pick">Choose image</string>
+    <string name="bg_remove">Remove image</string>
+    <string name="edit_size">Size</string>
+    <string name="edit_radius">Corner radius</string>
+    <string name="edit_alpha">Opacity</string>
+    <string name="edit_color">Tint</string>
+    <string name="edit_position">Position</string>
+    <string name="edit_reset">Reset</string>
+    <string name="edit_done">Done</string>
+    <string name="edit_blur">Blur</string>
+    <string name="edit_dim">Dim</string>
+    <string name="edit_brightness">Brightness</string>
+
+    <!-- Tabs / cards -->
+    <string name="tabs">Tabs</string>
+    <string name="tab_new">New tab</string>
+    <string name="tab_close">Close tab</string>
+    <string name="tab_cards">Your tabs</string>
+
+    <!-- Bar long press -->
+    <string name="copy_link">Copy link</string>
+    <string name="share_link">Share link</string>
+    <string name="make_shortcut">Make shortcut</string>
+    <string name="open_new_tab">Open in new tab</string>
+    <string name="close_tab">Close tab</string>
+    <string name="expand_bar">Expand bar</string>
+    <string name="shortcut_added">Shortcut added</string>
+
+    <!-- Tools -->
+    <string name="tools_reorder">Long-press a tool to reorder</string>
+    <string name="tool_new_incognito">Tabs</string>
+    <string name="tool_bookmark">Bookmark</string>
+    <string name="tool_notes">Notes</string>
+    <string name="tool_refresh">Reload</string>
+    <string name="tool_top">To top</string>
+    <string name="tool_theme">Theme</string>
+    <string name="tool_back">Back</string>
+    <string name="tool_forward">Forward</string>
+    <string name="tool_reload">Reload</string>
+    <string name="tool_home">Home</string>
+    <string name="tool_tabs">Tabs</string>
+    <string name="tool_history">History</string>
+    <string name="tool_share">Share</string>
+    <string name="tool_copy">Copy</string>
+    <string name="tool_external">Open</string>
+    <string name="tool_desktop">Desktop</string>
+    <string name="tool_zoom_in">Zoom +</string>
+    <string name="tool_zoom_out">Zoom −</string>
+    <string name="tool_find">Find</string>
+    <string name="tool_settings">Settings</string>
+    <string name="tool_clear">Clear</string>
+    <string name="tool_save">Save</string>
+    <string name="tool_section_common">Tools</string>
+    <string name="tools_reorder_hint">Hold and drag to reorder</string>
+    <string name="navigator">Results</string>
+    <string name="nothing_here">Nothing here yet</string>
+    <string name="settings">Settings</string>
+    <string name="setting_dark">Dark phantom</string>
+    <string name="setting_desktop">Desktop site</string>
+    <string name="setting_island_right">Island on the right</string>
+    <string name="clear_browsing">Clear data</string>
+    <string name="tool_clear_notes">Clear notes</string>
+    <string name="menu_copy">Copy link</string>
+    <string name="menu_share">Share link</string>
+    <string name="menu_shortcut">Add to home</string>
+    <string name="menu_new_tab">Open in new tab</string>
+    <string name="menu_close_tab">Close tab</string>
+    <string name="menu_refresh">Reload page</string>
+    <string name="menu_bookmark">Bookmark</string>
+    <string name="menu_external">Open in another app</string>
+    <string name="note_placeholder">Write a note</string>
+
+    <!-- Added: browser features -->
+    <string name="tool_newtab">New tab</string>
+    <string name="tool_bookmarks">Bookmarks</string>
+    <string name="tool_downloads">Downloads</string>
+    <string name="tool_translate">Translate</string>
+    <string name="setting_web_dark">Dark web pages</string>
+    <string name="setting_adblock">Block ads</string>
+    <string name="setting_suggestions">Suggestions</string>
+    <string name="library_title">Library</string>
+    <string name="library_history">History</string>
+    <string name="library_bookmarks">Bookmarks</string>
+    <string name="library_clear">Clear history</string>
+    <string name="library_empty">Nothing here yet</string>
+</resources>
