@@ -182,7 +182,7 @@ class VoidStore(context: Context) {
         (0 until array.length()).map { i ->
             val obj = array.getJSONObject(i)
             SavedTab(obj.optString("url"), obj.optString("title"), obj.optBoolean("desktop", false))
-        }.filter { it.url.isNotBlank() }
+        }
     }.getOrDefault(emptyList())
 
     var activeTabIndex: Int

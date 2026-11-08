@@ -46,7 +46,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.voidapp.R
 import dev.voidapp.ui.BrowserTab
-import dev.voidapp.ui.HOME_CARD_KEY
 import dev.voidapp.ui.VoidAppState
 import dev.voidapp.ui.components.Favicon
 import dev.voidapp.ui.components.ReorderGrid
@@ -55,13 +54,11 @@ import dev.voidapp.ui.theme.Poppins
 import dev.voidapp.ui.theme.VoidRed
 
 private sealed interface GridEntry {
-    data object Home : GridEntry
     data class Tab(val tab: BrowserTab) : GridEntry
     data object New : GridEntry
 }
 
 private fun entryKey(entry: GridEntry): Any = when (entry) {
-    GridEntry.Home -> "home"
     GridEntry.New -> "new"
     is GridEntry.Tab -> entry.tab.id
 }
@@ -74,7 +71,7 @@ private fun faviconOf(url: String): String =
  * The tab grid. It sits UNDER the live page: while the circle is pulled up (or the
  * tab tool is used) the page itself shrinks into its own card, so the card of the
  * current page is always the real page, and every other tab's card is its last
- * snapshot. Long-press a card to rearrange; Home is always the first card.
+ * snapshot. Long-press a card to rearrange; a Homepage tab is a card like any other.
  */
 @Composable
 fun TabGrid(
@@ -86,7 +83,6 @@ fun TabGrid(
     val scroll = rememberScrollState()
 
     val entries: List<GridEntry> = buildList {
-        add(GridEntry.Home)
         state.tabs.forEach { add(GridEntry.Tab(it)) }
         add(GridEntry.New)
     }
@@ -158,16 +154,11 @@ fun TabGrid(
                     columns = columns,
                     cellHeight = cellHeight,
                     gap = gap,
-                    fixedHead = 1,
                     fixedTail = 1,
                     stretchLastRow = false,
-                    onMove = { from, to -> state.moveTab(from - 1, to - 1) },
+                    onMove = { from, to -> state.moveTab(from, to) },
                 ) { entry, _, lifted ->
                     when (entry) {
-                        GridEntry.Home -> HomeCard(
-                            state = state,
-                            headerHeight = headerHeight,
-                        )
                         GridEntry.New -> NewCard(
                             state = state,
                             headerHeight = headerHeight,
@@ -257,51 +248,6 @@ private fun CardHeader(
 }
 
 @Composable
-private fun HomeCard(state: VoidAppState, headerHeight: androidx.compose.ui.unit.Dp) {
-    val colors = MaterialTheme.colorScheme
-    val active = !state.browserOpen
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .clickable(enabled = state.tabGridOpen) { state.selectHome() },
-    ) {
-        CardHeader(
-            title = "Home",
-            active = active,
-            height = headerHeight,
-            leading = {
-                Icon(Lucide.House, null, tint = colors.onSurfaceVariant, modifier = Modifier.size(14.dp))
-            },
-        )
-        Spacer(Modifier.height(4.dp))
-        PreviewBox(state = state, cardKey = HOME_CARD_KEY, active = active, modifier = Modifier.weight(1f)) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            0f to VoidRed,
-                            0.4f to VoidRed.copy(alpha = 0.55f),
-                            1f to colors.background,
-                        ),
-                    ),
-                contentAlignment = Alignment.TopCenter,
-            ) {
-                Text(
-                    text = "void",
-                    color = Color.White,
-                    fontFamily = Poppins,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 13.sp,
-                    letterSpacing = 2.sp,
-                    modifier = Modifier.padding(top = 14.dp),
-                )
-            }
-        }
-    }
-}
-
-@Composable
 private fun TabCard(
     state: VoidAppState,
     tab: BrowserTab,
@@ -310,8 +256,9 @@ private fun TabCard(
     onClose: () -> Unit,
 ) {
     val colors = MaterialTheme.colorScheme
-    val active = state.browserOpen && state.activeTabId == tab.id
-    val title = tab.title.ifBlank { tab.url.substringAfter("://", tab.url).substringBefore("/") }
+    val active = state.activeTabId == tab.id
+    val blank = tab.url.isBlank()
+    val title = if (blank) "Homepage" else tab.title.ifBlank { tab.url.substringAfter("://", tab.url).substringBefore("/") }
 
     Column(
         modifier = Modifier
@@ -323,13 +270,17 @@ private fun TabCard(
             active = active,
             height = headerHeight,
             leading = {
-                Favicon(
-                    faviconUrl = faviconOf(tab.url),
-                    contentDescription = title,
-                    size = 16.dp,
-                    circleColor = Color.Transparent,
-                    fallbackSize = 9.sp,
-                )
+                if (blank) {
+                    Icon(Lucide.House, null, tint = colors.onSurfaceVariant, modifier = Modifier.size(14.dp))
+                } else {
+                    Favicon(
+                        faviconUrl = faviconOf(tab.url),
+                        contentDescription = title,
+                        size = 16.dp,
+                        circleColor = Color.Transparent,
+                        fallbackSize = 9.sp,
+                    )
+                }
             },
             trailing = {
                 Box(
@@ -352,7 +303,18 @@ private fun TabCard(
         Spacer(Modifier.height(4.dp))
         PreviewBox(state = state, cardKey = tab.id, active = active, modifier = Modifier.weight(1f)) {
             val thumb = state.tabThumbs[tab.id]
-            if (thumb != null) {
+            if (blank) {
+                Box(Modifier.fillMaxSize().background(colors.background), contentAlignment = Alignment.TopCenter) {
+                    Text(
+                        text = "VOID",
+                        color = colors.onBackground,
+                        fontFamily = Poppins,
+                        fontSize = 13.sp,
+                        letterSpacing = (-0.5).sp,
+                        modifier = Modifier.padding(top = 38.dp),
+                    )
+                }
+            } else if (thumb != null) {
                 Image(
                     bitmap = thumb,
                     contentDescription = null,
@@ -380,7 +342,10 @@ private fun NewCard(state: VoidAppState, headerHeight: androidx.compose.ui.unit.
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .clickable(enabled = state.tabGridOpen) { state.startNewTab() },
+            .clickable(enabled = state.tabGridOpen) {
+                state.startNewTab()
+                state.closeTabGrid()
+            },
     ) {
         Spacer(Modifier.height(headerHeight + 4.dp))
         Box(

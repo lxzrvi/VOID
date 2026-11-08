@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -143,6 +144,8 @@ fun Favicon(
     circleColor: Color = Color.White,
     fallbackLabel: String? = null,
     fallbackSize: TextUnit = 14.sp,
+    shape: Shape = CircleShape,
+    fallbackColor: Color = Color.Unspecified,
 ) {
     val context = LocalContext.current
     remember { FaviconStore.init(context) }
@@ -155,7 +158,7 @@ fun Favicon(
     Box(
         modifier = modifier
             .size(size)
-            .clip(CircleShape)
+            .clip(shape)
             .background(circleColor),
         contentAlignment = Alignment.Center,
     ) {
@@ -172,9 +175,13 @@ fun Favicon(
             if (letter.isNotEmpty()) {
                 Text(
                     text = letter,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (fallbackColor == Color.Unspecified) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        fallbackColor
+                    },
                     fontFamily = Poppins,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Medium,
                     fontSize = fallbackSize,
                 )
             }

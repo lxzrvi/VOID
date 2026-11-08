@@ -108,8 +108,8 @@ fun BrowserScreen(
     val insetPx = WindowInsets.statusBars.getTop(density)
     state.statusInsetPx = insetPx
     val insetDp = with(density) { insetPx.toDp() }
-    LaunchedEffect(insetPx) {
-        state.applyInsetToPages(insetPx / density.density)
+    LaunchedEffect(insetPx, state.pageBottomInsetDp) {
+        state.applyInsetToPages(insetPx / density.density, state.pageBottomInsetDp)
     }
 
     val webView = remember(tabId, runtime.generation) {
@@ -160,6 +160,7 @@ fun BrowserScreen(
 
     DisposableEffect(webView) {
         webView.onResume()
+        state.reportScrollY(webView.scrollY)
         onDispose { webView.onPause() }
     }
 

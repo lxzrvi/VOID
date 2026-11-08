@@ -113,9 +113,6 @@ class JsDialogRequest(
     enum class Kind { Alert, Confirm, Prompt }
 }
 
-/** Key of the Home card in [VoidAppState.cardRects]. */
-const val HOME_CARD_KEY = -1L
-
 /**
  * Single source of truth. Everything the first frame needs (sites, notes,
  * background, box edits, tool order, open tabs) is read from [VoidStore]
@@ -337,7 +334,10 @@ class VoidAppState(
     init {
         val saved = store.readTabs()
         saved.forEach { tabs.add(BrowserTab(nextTabId++, it.url, it.title, it.desktop)) }
-        activeTabId = tabs.getOrNull(store.activeTabIndex)?.id ?: tabs.lastOrNull()?.id ?: 0L
+        // Launch on a Homepage tab: reuse one if it exists, otherwise add one.
+        val home = tabs.firstOrNull { it.url.isBlank() }
+            ?: BrowserTab(nextTabId++, "", "Homepage").also { tabs.add(it) }
+        activeTabId = home.id
     }
 
     val activeTab: BrowserTab? get() = tabs.firstOrNull { it.id == activeTabId }
@@ -375,9 +375,12 @@ class VoidAppState(
         webViews.values.forEach { runCatching { block(it) } }
     }
 
-    fun applyInsetToPages(cssPx: Float) {
+    fun applyInsetToPages(topCssPx: Float, bottomCssPx: Float) {
         webViews.values.forEach {
-            it.evaluateJavascript("window.__voidSetInset&&window.__voidSetInset($cssPx)", null)
+            it.evaluateJavascript(
+                "window.__voidSetInset&&window.__voidSetInset($topCssPx,$bottomCssPx)",
+                null,
+            )
         }
     }
 
@@ -399,16 +402,34 @@ class VoidAppState(
 
     fun onTabTitle(id: Long, title: String) = updateTab(id, null, title)
 
+    /** A blank [url] is a Homepage tab. */
     private fun newTab(url: String) {
         if (browserOpen) captureActiveThumb()
-        val tab = BrowserTab(id = nextTabId++, url = url, desktop = false)
+        val tab = BrowserTab(
+            id = nextTabId++,
+            url = url,
+            title = if (url.isBlank()) "Homepage" else "",
+            desktop = false,
+        )
         tabs.add(tab)
         activeTabId = tab.id
         address = url
-        browserOpen = true
+        findOpen = false
+        refreshScrolled()
         persistTabs()
     }
 
+    fun switchTab(id: Long) {
+        if (id == activeTabId || tabs.none { it.id == id }) return
+        if (browserOpen) captureActiveThumb()
+        activeTabId = id
+        address = tabs.firstOrNull { it.id == id }?.url.orEmpty()
+        findOpen = false
+        refreshScrolled()
+        persistTabs()
+    }
+
+    /** There is always at least one tab; closing the last one leaves a fresh Homepage. */
     fun closeTab(id: Long) {
         val index = tabs.indexOfFirst { it.id == id }
         if (index < 0) return
@@ -417,17 +438,18 @@ class VoidAppState(
         runtimes.remove(id)
         tabThumbs.remove(id)
         cardRects.remove(id)
-        if (activeTabId == id) {
-            val next = tabs.getOrNull(index) ?: tabs.lastOrNull()
-            if (next != null) {
-                activeTabId = next.id
-                address = next.url
-            } else {
-                activeTabId = 0L
-                browserOpen = false
-            }
+        if (tabs.isEmpty()) {
+            val fresh = BrowserTab(nextTabId++, "", "Homepage")
+            tabs.add(fresh)
+            activeTabId = fresh.id
+            address = ""
+        } else if (activeTabId == id) {
+            val next = tabs[maxOf(0, index - 1)]
+            activeTabId = next.id
+            address = next.url
         }
-        if (tabs.isEmpty()) browserOpen = false
+        findOpen = false
+        refreshScrolled()
         persistTabs()
     }
 
@@ -438,10 +460,7 @@ class VoidAppState(
         persistTabs()
     }
 
-    fun closeActiveTab() {
-        closeTab(activeTabId)
-        if (tabs.isEmpty()) closeTabGrid()
-    }
+    fun closeActiveTab() = closeTab(activeTabId)
 
     // ---- tab grid: the page shrinks into its card -------------------------
     /** 0 = a page fills the screen, 1 = the grid is fully open. */
@@ -457,7 +476,7 @@ class VoidAppState(
     val cardRects = mutableStateMapOf<Long, Rect>()
 
     val activeCardRect: Rect?
-        get() = cardRects[if (browserOpen && activeTab != null) activeTabId else HOME_CARD_KEY]
+        get() = cardRects[activeTabId]
 
     fun captureActiveThumb() {
         if (!browserOpen) return
@@ -507,23 +526,14 @@ class VoidAppState(
     }
 
     fun selectTab(id: Long) {
-        if (tabs.none { it.id == id }) return
-        if (browserOpen && id != activeTabId) captureActiveThumb()
-        activeTabId = id
-        address = tabs.firstOrNull { it.id == id }?.url.orEmpty()
-        browserOpen = true
-        persistTabs()
-        closeTabGrid()
-    }
-
-    fun selectHome() {
-        browserOpen = false
+        switchTab(id)
         closeTabGrid()
     }
 
     // ---- navigation -------------------------------------------------------
-    var browserOpen by mutableStateOf(false)
-        private set
+    /** True when the active tab shows a page; false on a Homepage tab. */
+    val browserOpen: Boolean get() = activeTab?.url?.isNotBlank() == true
+
     var address by mutableStateOf("")
 
     var toast by mutableStateOf<String?>(null)
@@ -537,17 +547,18 @@ class VoidAppState(
         }
     }
 
-    /** From Home a page always opens in a NEW tab; inside a page it loads in that tab. */
+    /** Loads [url] in the current tab (a Homepage tab turns into that page). */
     fun open(url: String) {
         if (url.isBlank()) return
-        if (!browserOpen || activeTab == null) {
+        val index = tabs.indexOfFirst { it.id == activeTabId }
+        if (index < 0) {
             newTab(url)
             return
         }
-        val index = tabs.indexOfFirst { it.id == activeTabId }
-        if (index >= 0) tabs[index] = tabs[index].copy(url = url)
+        tabs[index] = tabs[index].copy(url = url, title = "")
         address = url
         webViews[activeTabId]?.loadUrl(url)
+        refreshScrolled()
         persistTabs()
     }
 
@@ -561,14 +572,73 @@ class VoidAppState(
         open(resolve(query))
     }
 
+    /** The Home button: the current tab becomes a Homepage again. */
     fun goHome() {
-        if (browserOpen) captureActiveThumb()
-        browserOpen = false
-        closeTabGrid()
+        val index = tabs.indexOfFirst { it.id == activeTabId }
+        if (index < 0) return
+        destroyWebView(activeTabId)
+        tabThumbs.remove(activeTabId)
+        tabs[index] = tabs[index].copy(url = "", title = "Homepage")
+        address = ""
         findOpen = false
+        pageScrolled = false
+        persistTabs()
     }
 
-    override fun startNewTab() = goHome()
+    override fun startNewTab() = newTab("")
+
+    // ---- bottom bar: menu, scroll collapse, fullscreen ---------------------
+    var menuOpen by mutableStateOf(false)
+
+    fun closeMenu() {
+        menuOpen = false
+    }
+
+    /** True once the page is scrolled: the nav pill folds into a dot. */
+    var pageScrolled by mutableStateOf(false)
+        private set
+
+    fun reportScrollY(y: Int) {
+        pageScrolled = y > 20 * context.resources.displayMetrics.density
+    }
+
+    fun refreshScrolled() {
+        val view = if (browserOpen) webViews[activeTabId] else null
+        reportScrollY(view?.scrollY ?: 0)
+    }
+
+    /** Tapping the dot unfolds the pill again, even in the middle of a page. */
+    fun expandPill() {
+        pageScrolled = false
+    }
+
+    /** Asks the search field that matches the current page to take focus. */
+    var focusRequest by mutableIntStateOf(0)
+        private set
+
+    fun requestSearchFocus() {
+        menuOpen = false
+        focusRequest++
+    }
+
+    /** Height the bottom controls cover, so pages can leave room for them. */
+    var pageBottomInsetDp by mutableFloatStateOf(120f)
+
+    var fullscreen by mutableStateOf(false)
+        private set
+
+    fun toggleFullscreen() {
+        val window = activity?.window ?: return
+        fullscreen = !fullscreen
+        val controller = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
+        if (fullscreen) {
+            controller.systemBarsBehavior =
+                androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            controller.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+        } else {
+            controller.show(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+        }
+    }
 
     // ---- look & feel ------------------------------------------------------
     var darkTheme by mutableStateOf(store.darkTheme)
@@ -714,8 +784,9 @@ class VoidAppState(
 
     // ---- island actions ---------------------------------------------------
     override fun browserBack() {
+        if (!browserOpen) return
         val b = bridge
-        if (browserOpen && b != null && b.canGoBack) b.back() else goHome()
+        if (b != null && b.canGoBack) b.back() else goHome()
     }
 
     override fun browserForward() {

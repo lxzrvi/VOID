@@ -15,8 +15,9 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
@@ -38,6 +39,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TransformOrigin
@@ -57,9 +59,11 @@ import dev.voidapp.data.SearchProvider
 import dev.voidapp.ui.browser.BrowserScreen
 import dev.voidapp.ui.browser.TabGrid
 import dev.voidapp.ui.components.FaviconStore
-import dev.voidapp.ui.home.HomeScreen
-import dev.voidapp.ui.island.SearchIsland
+import dev.voidapp.ui.island.NotesPanel
+import dev.voidapp.ui.island.SettingsSheet
 import dev.voidapp.ui.library.LibraryScreen
+import dev.voidapp.ui.proto.ProtoControls
+import dev.voidapp.ui.proto.ProtoHome
 import dev.voidapp.ui.theme.VoidTheme
 
 /** Clips the shrinking page to the card it is landing in (rounded, top-anchored). */
@@ -71,22 +75,17 @@ private class PageClip(private val height: Float, private val radius: Float) : S
 }
 
 /**
- * App shell: home <-> in-app browser, the floating island on top of both, the tab
- * grid underneath the page, and the back stack - find bar / fullscreen video /
- * library / tab grid first, then page history, then home, then a confirmation
- * before the app closes.
+ * App shell, laid out like the VOID prototype: the page (Homepage or website) fills
+ * the screen and the controls float over it - tab row, home/search pill and the
+ * nav pill that opens the tabs box and the tools box. "Tabs overview" shrinks the
+ * page into its card in the tab grid, which lives underneath.
  *
- * Tab switcher: the page layer shrinks (scale + translate + corner clip) from full
- * screen into the card slot the grid reports for that page, driven by
- * [VoidAppState.tabProgress] - finger driven while the circle is pulled up.
+ * Back: find bar / fullscreen video / library / sheets / tab grid / menu first,
+ * then page history, then a confirmation before the app closes.
  */
 @Composable
 fun VoidRoot() {
     val state = rememberVoidAppState()
-
-    LaunchedEffect(Unit) {
-        if (state.event == null) state.reloadEvent()
-    }
 
     // Icons that were never fetched before (first launch / new shortcut): one
     // quiet fetch each. Anything already stored is not touched again.
@@ -103,15 +102,17 @@ fun VoidRoot() {
         when {
             confirmExit -> confirmExit = false
             state.libraryOpen -> state.libraryOpen = false
+            state.islandPanel != IslandPanel.None -> state.hidePanel()
             state.tabGridOpen -> state.closeTabGrid()
             state.findOpen -> state.findOpen = false
+            state.menuOpen -> state.closeMenu()
             state.browserOpen -> state.browserBack()
             else -> confirmExit = true
         }
     }
 
-    // Status bar icons follow whatever is behind them: the page's own colour in
-    // the browser, the brand red on Home, the theme elsewhere.
+    // Status bar icons follow what is behind them: the page's own colour in the
+    // browser, the theme everywhere else.
     val view = LocalView.current
     val pageColor = state.activeRuntime?.pageColor
     SideEffect {
@@ -121,7 +122,7 @@ fun VoidRoot() {
         controller.isAppearanceLightStatusBars = when {
             gridVisible || state.libraryOpen -> themeLight
             state.browserOpen -> pageColor?.let { it.luminance() > 0.5f } ?: themeLight
-            else -> false
+            else -> themeLight
         }
         controller.isAppearanceLightNavigationBars = themeLight
     }
@@ -173,20 +174,12 @@ fun VoidRoot() {
                             fadeIn(tween(220)) togetherWith fadeOut(tween(160))
                         }
                     },
-                    label = "root",
+                    label = "page",
                 ) { browsing ->
                     if (browsing) {
-                        BrowserScreen(
-                            state = state,
-                            modifier = Modifier.fillMaxSize(),
-                            onScrollDirection = state::reportScroll,
-                        )
+                        BrowserScreen(state = state, modifier = Modifier.fillMaxSize())
                     } else {
-                        HomeScreen(
-                            state = state,
-                            onScrollDirection = state::reportScroll,
-                            modifier = Modifier.fillMaxSize(),
-                        )
+                        ProtoHome(state = state, modifier = Modifier.fillMaxSize())
                     }
                 }
 
@@ -206,14 +199,27 @@ fun VoidRoot() {
                 LibraryScreen(state = state, modifier = Modifier.fillMaxSize())
             }
 
-            // Toasts: a small pill near the bottom.
+            // The prototype's controls float over the page.
+            AnimatedVisibility(
+                visible = !gridVisible && !state.libraryOpen && state.customView == null,
+                enter = fadeIn(tween(200)),
+                exit = fadeOut(tween(120)),
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                ProtoControls(state = state, modifier = Modifier.fillMaxSize())
+            }
+
+            SheetHost(state)
+
+            // Toasts: a small pill above the controls.
             AnimatedVisibility(
                 visible = state.toast != null,
                 enter = fadeIn(tween(160)),
                 exit = fadeOut(tween(160)),
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 96.dp),
+                    .navigationBarsPadding()
+                    .padding(bottom = 150.dp),
             ) {
                 Box(
                     modifier = Modifier
@@ -228,24 +234,6 @@ fun VoidRoot() {
                         fontSize = 12.sp,
                     )
                 }
-            }
-
-            // The island floats above every page. It stays while the tab grid is
-            // being pulled open (the circle follows the finger), then goes away.
-            AnimatedVisibility(
-                visible = !state.tabGridOpen && !state.libraryOpen && state.customView == null,
-                enter = fadeIn(tween(200)),
-                exit = fadeOut(tween(120)),
-                modifier = Modifier.fillMaxSize(),
-            ) {
-                SearchIsland(
-                    state = state,
-                    scrollDelta = state.scrollDelta,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .systemBarsPadding()
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                )
             }
         }
 
@@ -269,6 +257,34 @@ fun VoidRoot() {
                 }
             },
         )
+    }
+}
+
+/** Settings and Notes open as a card above the controls; a tap outside closes it. */
+@Composable
+private fun SheetHost(state: VoidAppState) {
+    val panel = state.islandPanel
+    if (panel != IslandPanel.Settings && panel != IslandPanel.Notes) return
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.28f))
+            .pointerInput(Unit) { detectTapGestures(onTap = { state.hidePanel() }) },
+        contentAlignment = Alignment.BottomCenter,
+    ) {
+        Box(
+            modifier = Modifier
+                .navigationBarsPadding()
+                .imePadding()
+                .padding(bottom = 80.dp)
+                .pointerInput(Unit) { detectTapGestures(onTap = { }) },
+        ) {
+            if (panel == IslandPanel.Settings) {
+                SettingsSheet(state = state, onDismiss = { state.hidePanel() })
+            } else {
+                NotesPanel(state = state, onDismiss = { state.hidePanel() })
+            }
+        }
     }
 }
 

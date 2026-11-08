@@ -43,18 +43,19 @@ private const val DESKTOP_UA =
  * <html>, plus a nudge for fixed headers glued to the top edge), while scrolled
  * content still passes UNDER the transparent status bar.
  */
-private fun insetScript(cssPx: Float): String = """
+private fun insetScript(topPx: Float, bottomPx: Float): String = """
 (function(){
-  if (window.__voidInsetInstalled) { window.__voidSetInset($cssPx); return; }
+  if (window.__voidInsetInstalled) { window.__voidSetInset($topPx, $bottomPx); return; }
   window.__voidInsetInstalled = true;
-  var top = $cssPx;
+  var top = $topPx;
+  var bottom = $bottomPx;
   function css(){
     var s = document.getElementById('__void_inset');
     if (!s) {
       s = document.createElement('style'); s.id = '__void_inset';
       (document.head || document.documentElement).appendChild(s);
     }
-    s.textContent = 'html{padding-top:' + top + 'px !important;scroll-padding-top:' + top + 'px !important;}';
+    s.textContent = 'html{padding-top:' + top + 'px !important;padding-bottom:' + bottom + 'px !important;scroll-padding-top:' + top + 'px !important;}';
   }
   function fix(){
     try {
@@ -71,7 +72,7 @@ private fun insetScript(cssPx: Float): String = """
       }
     } catch (x) {}
   }
-  window.__voidSetInset = function(v){ top = v; css(); fix(); };
+  window.__voidSetInset = function(t, b){ top = t; if (b !== undefined) bottom = b; css(); fix(); };
   css();
   document.addEventListener('DOMContentLoaded', function(){ css(); fix(); setTimeout(fix, 900); setTimeout(fix, 2600); });
 })();
@@ -163,7 +164,11 @@ fun createTabWebView(context: Context, state: VoidAppState, tabId: Long): WebVie
         CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
 
         if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
-            WebViewCompat.addDocumentStartJavaScript(this, insetScript(insetCss()), setOf("*"))
+            WebViewCompat.addDocumentStartJavaScript(
+                this,
+                insetScript(insetCss(), state.pageBottomInsetDp),
+                setOf("*"),
+            )
         }
 
         // Colour of the page, for the status-bar scrim and icon contrast.
@@ -175,7 +180,10 @@ fun createTabWebView(context: Context, state: VoidAppState, tabId: Long): WebVie
         val colorRunnable = Runnable { sampleColor(this) }
 
         setOnScrollChangeListener { v, _, scrollY, _, oldScrollY ->
-            if (tabId == state.activeTabId) state.reportScroll((oldScrollY - scrollY).toFloat())
+            if (tabId == state.activeTabId) {
+                state.reportScroll((oldScrollY - scrollY).toFloat())
+                state.reportScrollY(scrollY)
+            }
             v.removeCallbacks(colorRunnable)
             v.postDelayed(colorRunnable, 260)
         }
@@ -197,7 +205,7 @@ fun createTabWebView(context: Context, state: VoidAppState, tabId: Long): WebVie
 
             private fun injectInset(view: WebView) {
                 // Fallback for WebViews without document-start scripts.
-                view.evaluateJavascript(insetScript(insetCss()), null)
+                view.evaluateJavascript(insetScript(insetCss(), state.pageBottomInsetDp), null)
             }
 
             override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
@@ -209,7 +217,7 @@ fun createTabWebView(context: Context, state: VoidAppState, tabId: Long): WebVie
 
             override fun onPageCommitVisible(view: WebView, url: String?) {
                 view.evaluateJavascript(
-                    "window.__voidSetInset&&window.__voidSetInset(${insetCss()})",
+                    "window.__voidSetInset&&window.__voidSetInset(${insetCss()},${state.pageBottomInsetDp})",
                     null,
                 )
                 sampleColor(view)

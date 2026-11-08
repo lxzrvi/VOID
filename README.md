@@ -142,3 +142,23 @@ JDK 17 and Android SDK platform 37 are required.
   links, print / save as PDF, translate, ad & tracker blocking, dark web pages,
   live search suggestions, full history & bookmarks screen, proper back
   navigation, per-tab desktop mode.
+
+
+---
+
+## 0.5.0 - the prototype UI
+
+The main page and all behaviour follow the HTML prototype:
+
+* **Homepage:** white page, nine shortcuts at 17 % height, the light `VOID`
+  wordmark at 31 % (tap it for the squeeze animation), the search pill at 50 %.
+  Focusing the search pill dims the shortcuts and wordmark.
+* **Tabs:** every tab is either a Homepage or a page. New tab = Homepage tab, the
+  Home button turns the current tab back into a Homepage, closing the last tab
+  leaves a fresh one. Tabs are listed as italic names with an x and a + button.
+* **Bottom bar:** home/search pill plus the five-icon nav pill. The menu button
+  grows the pill upward into the paged 3 x 4 tools box (long press on a tool
+  shows its name); the tabs box rises above the home pill.
+* **Scrolling a page** folds the nav pill into a dot and hides the tab row;
+  tapping the dot unfolds it again.
+* "Tabs overview" opens the card grid (page shrinks into its card).
