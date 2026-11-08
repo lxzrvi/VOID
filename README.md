@@ -4,7 +4,7 @@ Ek blank page. Bas ek circle, bottom-right corner me. Tap karo — woh smoothly
 poori width tak grow hota hai aur ek search island ban jaata hai.
 
 Built with Jetpack Compose, AGP 9 (built-in Kotlin) and
-[Lucide icons](https://github.com/thelacspace/lucide-compose).
+[Material icons](https://github.com/thelacspace/lucide-compose).
 
 ---
 
@@ -48,16 +48,16 @@ to build locally.
   a drawable is a raw `<svg>`, has no viewport, or draws nothing. Shipping raw SVG
   in 0.1.0 is what crashed on launch with
   `<VectorGraphic> tag requires viewportWidth > 0`.
-* UI glyphs (arrows, three dots, close) are Lucide icons. Their paths are
-  inlined in `ui/components/Lucide.kt` (copied 1:1 from the
+* UI glyphs (arrows, three dots, close) are Material icons. Their paths are
+  inlined in `ui/components/Material.kt` (copied 1:1 from the
   [lucide-compose](https://github.com/thelacspace/lucide-compose) sources) and
-  drawn with a 2.5f stroke instead of Lucide's default 2f — that is the "bold"
+  drawn with a 2.5f stroke instead of Material's default 2f — that is the "bold"
   look in the pill.
   Why not the Maven artifact: `io.github.thelacspace:lucide-compose:1.16.0` on
   Maven Central only ships the generator's test icons (Triangle,
   TriangleAlert, TriangleDashed, Trophy) — the actual icon set is missing, so
-  `LucideIcons.All.ArrowLeft` does not exist at compile time. Swap the `by lazy`
-  bodies in `Lucide.kt` for the library's composable properties once a full
+  `MaterialIcons.All.ArrowLeft` does not exist at compile time. Swap the `by lazy`
+  bodies in `Material.kt` for the library's composable properties once a full
   release is published; call sites don't change.
 
 ## Project layout
@@ -68,7 +68,7 @@ app/                          single application module (package dev.voidapp)
     MainActivity.kt           edge-to-edge host
     ui/VoidScreen.kt          the one screen: blank surface + island
     ui/components/VoidIsland.kt   the circle → island animation, search field, pill
-    ui/components/Lucide.kt       inlined Lucide glyphs (arrows, ellipsis, x)
+    ui/components/Material.kt       inlined Material glyphs (arrows, ellipsis, x)
     ui/theme/Theme.kt         brand red + light/dark schemes (follows the system)
   src/main/res/
     drawable/void_icon.xml            launcher art (full mark) - generated
@@ -90,7 +90,7 @@ icon/                         original SVG sources
 | Compose BOM | 2026.09.00 |
 | compileSdk / targetSdk | 37 |
 | minSdk | 26 |
-| Lucide glyphs | inlined from lucide-compose 1.16.0 |
+| Material glyphs | inlined from lucide-compose 1.16.0 |
 
 AGP 9 compiles Kotlin itself and pins that compiler to the KGP version it ships
 with. The root `build.gradle.kts` puts the project's KGP on the build classpath
@@ -162,3 +162,24 @@ The main page and all behaviour follow the HTML prototype:
 * **Scrolling a page** folds the nav pill into a dot and hides the tab row;
   tapping the dot unfolds it again.
 * "Tabs overview" opens the card grid (page shrinks into its card).
+
+
+---
+
+## 0.6.0 - voidupdate1
+
+* **Home:** one row of boxes (9 by default), each showing only the app's first
+  capital letter - no icons or images, no add button. Boxes per row, box colour,
+  letter colour, transparency and corner radius live in Settings.
+* **Tabs:** every tab is a pill (`Homepage x`); long press opens the tab's option
+  box next to it (reload, duplicate, copy link, share, close others, close).
+* **Bottom bar:** the search field shows the current URL, fully selected while
+  editing; it takes URLs and searches. It only rides up with the keyboard when it
+  is the field being typed in. The nav pill has four icons (back, forward, home,
+  hamburger); the hamburger opens 36 tools on 3 pages of 4 rows. Find in page
+  also opens at the bottom.
+* **Scrolling a page** folds the search bar and the nav pill into one circle with
+  the VOID mark (`void_inner_icon`); tap it to unfold. No fade over the bottom.
+* **Settings** is a full screen page: home boxes (add a website, add a bookmark,
+  reorder, remove), browser switches, theme, data.
+* **Icons** come from Material Icons (filled); nothing is hand-drawn any more.

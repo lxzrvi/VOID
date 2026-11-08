@@ -28,6 +28,7 @@ class VoidAndroidComposePlugin : Plugin<Project> {
                 add("implementation", library("compose-ui-tooling-preview"))
                 add("implementation", library("compose-foundation"))
                 add("implementation", library("compose-material3"))
+                add("implementation", library("compose-material-icons-extended"))
                 add("debugImplementation", library("compose-ui-tooling"))
 
                 add("implementation", library("androidx-activity-compose"))

@@ -29,6 +29,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
@@ -73,7 +75,11 @@ import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewFeature
 import dev.voidapp.R
 import dev.voidapp.ui.VoidAppState
-import dev.voidapp.ui.icons.Lucide
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Language
 import dev.voidapp.ui.theme.Poppins
 import dev.voidapp.ui.theme.VoidRed
 
@@ -225,10 +231,12 @@ fun BrowserScreen(
         if (state.findOpen) {
             FindBar(
                 state = state,
+                // Find in page lives at the bottom, riding up with the keyboard.
                 modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .statusBarsPadding()
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .imePadding()
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
             )
         }
 
@@ -242,7 +250,7 @@ fun BrowserScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Icon(
-                    imageVector = Lucide.Globe,
+                    imageVector = Icons.Filled.Language,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(28.dp),
@@ -315,6 +323,13 @@ fun BrowserScreen(
             override fun forward() = webView.goForward()
             override fun reload() = webView.reload()
             override fun scrollToTop() = webView.scrollTo(0, 0)
+            override fun scrollToBottom() {
+                webView.pageDown(true)
+            }
+            override fun stop() = webView.stopLoading()
+            override fun resetZoom() {
+                webView.settings.textZoom = 100
+            }
 
             override fun setDesktopMode(enabled: Boolean) {
                 webView.settings.userAgentString = if (enabled) {
@@ -445,9 +460,9 @@ private fun FindBar(state: VoidAppState, modifier: Modifier = Modifier) {
             )
             Spacer(Modifier.width(2.dp))
         }
-        FindIcon(Lucide.ArrowUp) { state.bridge?.findNext(false) }
-        FindIcon(Lucide.ChevronDown) { state.bridge?.findNext(true) }
-        FindIcon(Lucide.X) { state.findOpen = false }
+        FindIcon(Icons.Filled.KeyboardArrowUp) { state.bridge?.findNext(false) }
+        FindIcon(Icons.Filled.KeyboardArrowDown) { state.bridge?.findNext(true) }
+        FindIcon(Icons.Filled.Close) { state.findOpen = false }
     }
 }
 
@@ -455,11 +470,11 @@ private fun FindBar(state: VoidAppState, modifier: Modifier = Modifier) {
 private fun FindIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .size(34.dp)
+            .size(36.dp)
             .clip(CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(18.dp))
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(22.dp))
     }
 }

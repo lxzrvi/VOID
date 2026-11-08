@@ -49,7 +49,10 @@ import dev.voidapp.ui.BrowserTab
 import dev.voidapp.ui.VoidAppState
 import dev.voidapp.ui.components.Favicon
 import dev.voidapp.ui.components.ReorderGrid
-import dev.voidapp.ui.icons.Lucide
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Home
 import dev.voidapp.ui.theme.Poppins
 import dev.voidapp.ui.theme.VoidRed
 
@@ -134,7 +137,7 @@ fun TabGrid(
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        Lucide.X,
+                        Icons.Filled.Close,
                         contentDescription = stringResource(R.string.browser_close),
                         tint = colors.onSurface,
                         modifier = Modifier.size(18.dp),
@@ -271,7 +274,7 @@ private fun TabCard(
             height = headerHeight,
             leading = {
                 if (blank) {
-                    Icon(Lucide.House, null, tint = colors.onSurfaceVariant, modifier = Modifier.size(14.dp))
+                    Icon(Icons.Filled.Home, null, tint = colors.onSurfaceVariant, modifier = Modifier.size(14.dp))
                 } else {
                     Favicon(
                         faviconUrl = faviconOf(tab.url),
@@ -292,7 +295,7 @@ private fun TabCard(
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        Lucide.X,
+                        Icons.Filled.Close,
                         contentDescription = stringResource(R.string.tab_close),
                         tint = colors.onSurfaceVariant,
                         modifier = Modifier.size(12.dp),
@@ -358,7 +361,7 @@ private fun NewCard(state: VoidAppState, headerHeight: androidx.compose.ui.unit.
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(
-                    Lucide.Plus,
+                    Icons.Filled.Add,
                     contentDescription = stringResource(R.string.tab_new),
                     tint = colors.onSurfaceVariant,
                     modifier = Modifier.size(22.dp),

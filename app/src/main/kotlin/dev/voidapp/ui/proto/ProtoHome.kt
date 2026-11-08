@@ -19,16 +19,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -49,21 +46,15 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.coerceAtMost
+import androidx.compose.ui.unit.coerceIn
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
-import dev.voidapp.data.Site
 import dev.voidapp.ui.VoidAppState
-import dev.voidapp.ui.components.Favicon
 import dev.voidapp.ui.components.ReorderGrid
-import dev.voidapp.ui.home.AddSiteDialog
 import dev.voidapp.ui.theme.Poppins
 import kotlinx.coroutines.launch
-
-private sealed interface Shortcut {
-    data class Entry(val site: Site) : Shortcut
-    data object Add : Shortcut
-}
 
 /** Scale / letter-spacing / opacity of the VOID wordmark tap, from the prototype's keyframes. */
 private fun brandFrame(t: Float): FloatArray {
@@ -99,16 +90,6 @@ fun ProtoHome(state: VoidAppState, modifier: Modifier = Modifier) {
 
     var searchFocus by remember { mutableStateOf(false) }
     var text by remember { mutableStateOf("") }
-    var showAdd by remember { mutableStateOf(false) }
-
-    // "Search" in the tools box asks this field for focus (only on a Homepage tab).
-    var lastRequest by remember { mutableIntStateOf(state.focusRequest) }
-    LaunchedEffect(state.focusRequest) {
-        if (state.focusRequest != lastRequest) {
-            lastRequest = state.focusRequest
-            if (!state.browserOpen) runCatching { focusRequester.requestFocus() }
-        }
-    }
 
     val brand = remember { Animatable(0f) }
 
@@ -117,12 +98,17 @@ fun ProtoHome(state: VoidAppState, modifier: Modifier = Modifier) {
         val h = maxHeight
         val dim by animateFloatAsState(if (searchFocus) 0.3f else 1f, tween(300), label = "dim")
 
-        // ---- shortcuts ------------------------------------------------------
-        val gap = (w * 0.022f).coerceIn(7.dp, 13.dp)
-        val iconSize = (w * 0.075f).coerceIn(27.dp, 34.dp)
-        val labelSize = with(density) { (w * 0.024f).coerceIn(8.dp, 10.dp).toSp() }
-        val sites = state.visibleSites
-        val items: List<Shortcut> = sites.map { Shortcut.Entry(it) } + Shortcut.Add
+        // ---- shortcuts: one row of letter boxes -----------------------------------
+        val count = state.homeCount
+        val gap = (w * 0.022f).coerceIn(5.dp, 13.dp)
+        val rowWidth = w * 0.9f
+        // Size follows the count: more boxes per row means smaller boxes.
+        val boxSize = (rowWidth - gap * (count - 1)) / count
+        val letterSize = with(density) { (boxSize * 0.5f).toSp() }
+        val radius = state.boxRadius.dp.coerceAtMost(boxSize / 2)
+        val fill = (state.boxColor ?: c.iconBg).copy(alpha = state.boxAlpha)
+        val letterColor = state.boxTextColor ?: c.label
+        val sites = state.homeSites
 
         Box(
             modifier = Modifier
@@ -132,79 +118,41 @@ fun ProtoHome(state: VoidAppState, modifier: Modifier = Modifier) {
                 .graphicsLayer { alpha = dim },
         ) {
             ReorderGrid(
-                items = items,
-                itemKey = { item ->
-                    when (item) {
-                        is Shortcut.Entry -> item.site.key
-                        Shortcut.Add -> "__add__"
-                    }
-                },
-                columns = 9,
-                cellHeight = iconSize + 7.dp + 15.dp,
+                items = sites,
+                itemKey = { it.key },
+                columns = count,
+                cellHeight = boxSize,
                 gap = gap,
-                fixedTail = 1,
                 stretchLastRow = false,
                 onMove = { from, to -> state.moveSite(from, to) },
-            ) { item, _, lifted ->
+            ) { site, _, lifted ->
                 val interaction = remember { MutableInteractionSource() }
                 val pressed by interaction.collectIsPressedAsState()
                 val scale by animateFloatAsState(if (pressed) 0.86f else 1f, tween(200), label = "press")
-                val label = when (item) {
-                    is Shortcut.Entry -> item.site.name.take(3).uppercase()
-                    Shortcut.Add -> "ADD"
-                }
-                Column(
+                Box(
                     modifier = Modifier
                         .fillMaxSize()
+                        .graphicsLayer {
+                            scaleX = scale
+                            scaleY = scale
+                        }
+                        .clip(RoundedCornerShape(radius))
+                        .background(fill)
                         .clickable(
                             interactionSource = interaction,
                             indication = null,
                             enabled = !lifted,
-                        ) {
-                            when (item) {
-                                is Shortcut.Entry -> state.open(item.site.url)
-                                Shortcut.Add -> showAdd = true
-                            }
-                        },
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                        ) { state.open(site.url) },
+                    contentAlignment = Alignment.Center,
                 ) {
-                    Box(
-                        modifier = Modifier.graphicsLayer {
-                            scaleX = scale
-                            scaleY = scale
-                        },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        when (item) {
-                            is Shortcut.Entry -> Favicon(
-                                faviconUrl = item.site.faviconUrl,
-                                contentDescription = item.site.name,
-                                size = iconSize,
-                                circleColor = c.iconBg,
-                                shape = RoundedCornerShape(7.dp),
-                                fallbackSize = 16.sp,
-                                fallbackColor = c.label,
-                            )
-                            Shortcut.Add -> Box(
-                                modifier = Modifier
-                                    .size(iconSize)
-                                    .clip(RoundedCornerShape(7.dp))
-                                    .background(c.iconBg),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Text("+", color = c.label, fontSize = 16.sp, fontWeight = FontWeight.Medium)
-                            }
-                        }
-                    }
-                    Box(Modifier.height(7.dp))
+                    // Only the app's first letter, capital - no image.
                     Text(
-                        text = label,
-                        color = c.label,
+                        text = site.name.trim().take(1).uppercase().ifEmpty { "?" },
+                        color = letterColor,
                         fontFamily = Poppins,
-                        fontSize = labelSize,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = letterSize,
                         maxLines = 1,
-                        softWrap = false,
-                        textAlign = TextAlign.Center,
                     )
                 }
             }
@@ -296,15 +244,5 @@ fun ProtoHome(state: VoidAppState, modifier: Modifier = Modifier) {
                 },
             )
         }
-    }
-
-    if (showAdd) {
-        AddSiteDialog(
-            onDismiss = { showAdd = false },
-            onAdd = { name, url ->
-                state.addSite(name, url)
-                showAdd = false
-            },
-        )
     }
 }

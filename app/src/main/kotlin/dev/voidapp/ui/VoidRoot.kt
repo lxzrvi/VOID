@@ -55,12 +55,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
 import androidx.core.view.WindowCompat
 import dev.voidapp.R
-import dev.voidapp.data.SearchProvider
 import dev.voidapp.ui.browser.BrowserScreen
 import dev.voidapp.ui.browser.TabGrid
-import dev.voidapp.ui.components.FaviconStore
-import dev.voidapp.ui.island.NotesPanel
-import dev.voidapp.ui.island.SettingsSheet
+import dev.voidapp.ui.notes.NotesSheet
+import dev.voidapp.ui.settings.SettingsScreen
 import dev.voidapp.ui.library.LibraryScreen
 import dev.voidapp.ui.proto.ProtoControls
 import dev.voidapp.ui.proto.ProtoHome
@@ -87,14 +85,6 @@ private class PageClip(private val height: Float, private val radius: Float) : S
 fun VoidRoot() {
     val state = rememberVoidAppState()
 
-    // Icons that were never fetched before (first launch / new shortcut): one
-    // quiet fetch each. Anything already stored is not touched again.
-    LaunchedEffect(Unit) {
-        FaviconStore.fetchMissing(
-            state.sites.map { it.faviconUrl } + SearchProvider.entries.map { it.faviconUrl },
-        )
-    }
-
     var confirmExit by remember { mutableStateOf(false) }
     val gridVisible by remember { derivedStateOf { state.tabProgress > 0.0005f || state.tabGridOpen } }
 
@@ -102,6 +92,7 @@ fun VoidRoot() {
         when {
             confirmExit -> confirmExit = false
             state.libraryOpen -> state.libraryOpen = false
+            state.settingsOpen -> state.settingsOpen = false
             state.islandPanel != IslandPanel.None -> state.hidePanel()
             state.tabGridOpen -> state.closeTabGrid()
             state.findOpen -> state.findOpen = false
@@ -120,7 +111,7 @@ fun VoidRoot() {
         val controller = WindowCompat.getInsetsController(window, view)
         val themeLight = !state.darkTheme
         controller.isAppearanceLightStatusBars = when {
-            gridVisible || state.libraryOpen -> themeLight
+            gridVisible || state.libraryOpen || state.settingsOpen -> themeLight
             state.browserOpen -> pageColor?.let { it.luminance() > 0.5f } ?: themeLight
             else -> themeLight
         }
@@ -195,13 +186,17 @@ fun VoidRoot() {
                 }
             }
 
+            if (state.settingsOpen) {
+                SettingsScreen(state = state, modifier = Modifier.fillMaxSize())
+            }
+
             if (state.libraryOpen) {
                 LibraryScreen(state = state, modifier = Modifier.fillMaxSize())
             }
 
             // The prototype's controls float over the page.
             AnimatedVisibility(
-                visible = !gridVisible && !state.libraryOpen && state.customView == null,
+                visible = !gridVisible && !state.libraryOpen && !state.settingsOpen && state.customView == null,
                 enter = fadeIn(tween(200)),
                 exit = fadeOut(tween(120)),
                 modifier = Modifier.fillMaxSize(),
@@ -260,11 +255,10 @@ fun VoidRoot() {
     }
 }
 
-/** Settings and Notes open as a card above the controls; a tap outside closes it. */
+/** Notes open as a card above the controls; a tap outside closes it. */
 @Composable
 private fun SheetHost(state: VoidAppState) {
-    val panel = state.islandPanel
-    if (panel != IslandPanel.Settings && panel != IslandPanel.Notes) return
+    if (state.islandPanel != IslandPanel.Notes) return
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -279,11 +273,7 @@ private fun SheetHost(state: VoidAppState) {
                 .padding(bottom = 80.dp)
                 .pointerInput(Unit) { detectTapGestures(onTap = { }) },
         ) {
-            if (panel == IslandPanel.Settings) {
-                SettingsSheet(state = state, onDismiss = { state.hidePanel() })
-            } else {
-                NotesPanel(state = state, onDismiss = { state.hidePanel() })
-            }
+            NotesSheet(state = state)
         }
     }
 }

@@ -21,6 +21,9 @@ interface BrowserBridge {
     fun forward()
     fun reload()
     fun scrollToTop()
+    fun scrollToBottom()
+    fun stop()
+    fun resetZoom()
     fun setDesktopMode(enabled: Boolean)
     fun applyWebDark(enabled: Boolean)
 

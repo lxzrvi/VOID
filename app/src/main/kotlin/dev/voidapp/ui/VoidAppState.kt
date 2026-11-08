@@ -28,6 +28,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import dev.voidapp.data.Background
 import dev.voidapp.data.BoxEdit
@@ -237,6 +238,43 @@ class VoidAppState(
         if (site != null) open(site.url) else search(pick)
     }
 
+    // ---- home boxes: how many, and how they look --------------------------------
+    var homeCount by mutableIntStateOf(store.homeCount.coerceIn(4, 12))
+        private set
+    var boxColor by mutableStateOf(store.boxColor.takeIf { it != 0 }?.let { Color(it) })
+        private set
+    var boxTextColor by mutableStateOf(store.boxTextColor.takeIf { it != 0 }?.let { Color(it) })
+        private set
+    var boxAlpha by mutableFloatStateOf(store.boxAlpha.coerceIn(0f, 1f))
+        private set
+    var boxRadius by mutableFloatStateOf(store.boxRadius.coerceIn(0f, 30f))
+        private set
+
+    fun updateHomeCount(value: Int) {
+        homeCount = value.coerceIn(4, 12)
+        store.homeCount = homeCount
+    }
+
+    fun updateBoxColor(value: Color?) {
+        boxColor = value
+        store.boxColor = value?.toArgb() ?: 0
+    }
+
+    fun updateBoxTextColor(value: Color?) {
+        boxTextColor = value
+        store.boxTextColor = value?.toArgb() ?: 0
+    }
+
+    fun updateBoxAlpha(value: Float) {
+        boxAlpha = value.coerceIn(0f, 1f)
+        store.boxAlpha = boxAlpha
+    }
+
+    fun updateBoxRadius(value: Float) {
+        boxRadius = value.coerceIn(0f, 30f)
+        store.boxRadius = boxRadius
+    }
+
     // ---- shortcuts (order + hidden state persist) --------------------------
     val sites = mutableStateListOf<Site>().apply {
         val saved = store.cachedSites
@@ -244,6 +282,9 @@ class VoidAppState(
     }
 
     val visibleSites: List<Site> get() = sites.filterNot { it.hidden }
+
+    /** The Homepage shows one row only: the first [homeCount] boxes. */
+    val homeSites: List<Site> get() = visibleSites.take(homeCount)
 
     fun persistSites() = store.writeSites(sites.toList())
 
@@ -430,9 +471,15 @@ class VoidAppState(
     }
 
     /** There is always at least one tab; closing the last one leaves a fresh Homepage. */
+    private val closedTabs = ArrayList<BrowserTab>()
+
     fun closeTab(id: Long) {
         val index = tabs.indexOfFirst { it.id == id }
         if (index < 0) return
+        tabs[index].takeIf { it.url.isNotBlank() }?.let {
+            closedTabs.add(it)
+            if (closedTabs.size > 10) closedTabs.removeAt(0)
+        }
         tabs.removeAt(index)
         destroyWebView(id)
         runtimes.remove(id)
@@ -448,6 +495,36 @@ class VoidAppState(
             activeTabId = next.id
             address = next.url
         }
+        findOpen = false
+        refreshScrolled()
+        persistTabs()
+    }
+
+    fun duplicateTab(id: Long) {
+        val tab = tabs.firstOrNull { it.id == id } ?: return
+        newTab(tab.url)
+    }
+
+    fun reopenClosedTab() {
+        val last = closedTabs.removeLastOrNull()
+        if (last == null) {
+            showToast("No closed tabs")
+        } else {
+            newTab(last.url)
+        }
+    }
+
+    fun closeOtherTabs(id: Long) {
+        tabs.filter { it.id != id }.forEach {
+            destroyWebView(it.id)
+            runtimes.remove(it.id)
+            tabThumbs.remove(it.id)
+            cardRects.remove(it.id)
+        }
+        tabs.removeAll { it.id != id }
+        if (tabs.none { it.id == id }) return
+        activeTabId = id
+        address = tabs.first().url
         findOpen = false
         refreshScrolled()
         persistTabs()
@@ -620,6 +697,12 @@ class VoidAppState(
         menuOpen = false
         focusRequest++
     }
+
+    /** True while the bottom search field has focus: only then the bar rides up with the keyboard. */
+    var bottomFocus by mutableStateOf(false)
+
+    /** Settings is a full screen page. */
+    var settingsOpen by mutableStateOf(false)
 
     /** Height the bottom controls cover, so pages can leave room for them. */
     var pageBottomInsetDp by mutableFloatStateOf(120f)
@@ -809,7 +892,10 @@ class VoidAppState(
         hidePanel()
     }
 
-    override fun openSettings() = showPanel(IslandPanel.Settings)
+    override fun openSettings() {
+        settingsOpen = true
+        menuOpen = false
+    }
 
     override fun openNotes() = showPanel(IslandPanel.Notes)
 
@@ -866,6 +952,19 @@ class VoidAppState(
 
     override fun scrollToTop() {
         bridge?.scrollToTop()
+    }
+
+    fun scrollToBottom() {
+        bridge?.scrollToBottom()
+    }
+
+    fun stopLoading() {
+        bridge?.stop()
+    }
+
+    fun resetZoom() {
+        bridge?.resetZoom()
+        showToast("100%")
     }
 
     override fun translatePage() {

@@ -37,7 +37,8 @@ import dev.voidapp.R
 import dev.voidapp.data.PageEntry
 import dev.voidapp.ui.VoidAppState
 import dev.voidapp.ui.components.Favicon
-import dev.voidapp.ui.icons.Lucide
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import dev.voidapp.ui.theme.Poppins
 import dev.voidapp.ui.theme.VoidRed
 
@@ -92,7 +93,7 @@ fun LibraryScreen(state: VoidAppState, modifier: Modifier = Modifier) {
                     .clickable { state.libraryOpen = false },
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Lucide.X, null, tint = colors.onSurface, modifier = Modifier.size(18.dp))
+                Icon(Icons.Filled.Close, null, tint = colors.onSurface, modifier = Modifier.size(18.dp))
             }
         }
 
@@ -195,7 +196,7 @@ private fun LibraryRow(entry: PageEntry, onOpen: () -> Unit, onDelete: () -> Uni
                 .clickable(onClick = onDelete),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(Lucide.X, null, tint = colors.onSurfaceVariant, modifier = Modifier.size(15.dp))
+            Icon(Icons.Filled.Close, null, tint = colors.onSurfaceVariant, modifier = Modifier.size(15.dp))
         }
     }
 }

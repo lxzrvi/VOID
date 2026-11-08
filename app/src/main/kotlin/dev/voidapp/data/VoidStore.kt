@@ -47,6 +47,29 @@ class VoidStore(context: Context) {
         get() = prefs.getBoolean("suggestions", true)
         set(value) = prefs.edit { putBoolean("suggestions", value) }
 
+    // ---- home boxes -----------------------------------------------------------
+    var homeCount: Int
+        get() = prefs.getInt("home_count", 9)
+        set(value) = prefs.edit { putInt("home_count", value) }
+
+    /** ARGB, 0 = follow the theme. */
+    var boxColor: Int
+        get() = prefs.getInt("box_color", 0)
+        set(value) = prefs.edit { putInt("box_color", value) }
+
+    /** ARGB, 0 = follow the theme. */
+    var boxTextColor: Int
+        get() = prefs.getInt("box_text_color", 0)
+        set(value) = prefs.edit { putInt("box_text_color", value) }
+
+    var boxAlpha: Float
+        get() = prefs.getFloat("box_alpha", 1f)
+        set(value) = prefs.edit { putFloat("box_alpha", value) }
+
+    var boxRadius: Float
+        get() = prefs.getFloat("box_radius", 7f)
+        set(value) = prefs.edit { putFloat("box_radius", value) }
+
     // ---- search -----------------------------------------------------------
     var provider: SearchProvider
         get() = SearchProvider.fromName(prefs.getString("provider", null))

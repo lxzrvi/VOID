@@ -28,11 +28,6 @@ for path in files:
     for match in re.finditer(r"^\s{4}(?:val|fun)\s+([A-Za-z_]\w*)", text, re.M):
         defined.setdefault(match.group(1), pkg)
 
-# ---- generated Lucide icons ---------------------------------------------
-lucide_file = SRC / "dev/voidapp/ui/icons/Lucide.kt"
-lucide_props = set(re.findall(r"^    val (\w+): ImageVector", lucide_file.read_text(), re.M))
-print(f"Lucide icons generated: {len(lucide_props)}")
-
 for path in files:
     rel = path.relative_to(ROOT)
     text = path.read_text()
@@ -53,12 +48,6 @@ for path in files:
             break
     if depth != 0:
         errors.append(f"{rel}: braces do not close ({depth})")
-
-    # every Lucide.X reference must exist
-    for match in re.finditer(r"\bLucide\.(\w+)", text):
-        name = match.group(1)
-        if name not in lucide_props:
-            errors.append(f"{rel}: Lucide.{name} is not generated")
 
     # imports that point at our own packages must resolve
     for match in re.finditer(r"^import (dev\.voidapp[\w.]*)\.(\w+)$", text, re.M):

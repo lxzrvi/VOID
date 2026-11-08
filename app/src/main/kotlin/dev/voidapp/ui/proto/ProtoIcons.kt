@@ -1,98 +1,100 @@
 package dev.voidapp.ui.proto
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AddBox
+import androidx.compose.material.icons.filled.BookmarkAdd
+import androidx.compose.material.icons.filled.Bookmarks
+import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.ClearAll
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Computer
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Contrast
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.FindInPage
+import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Print
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.StickyNote2
+import androidx.compose.material.icons.filled.Tab
+import androidx.compose.material.icons.filled.Translate
+import androidx.compose.material.icons.filled.VerticalAlignBottom
+import androidx.compose.material.icons.filled.VerticalAlignTop
+import androidx.compose.material.icons.filled.ZoomIn
+import androidx.compose.material.icons.filled.ZoomOut
+import androidx.compose.material.icons.filled.ZoomOutMap
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.graphics.vector.PathParser
-import androidx.compose.ui.unit.dp
 
 /**
- * The exact SVG glyphs of the VOID prototype (24x24, round caps and joins, stroke
- * only), parsed from the same path data. [get] takes the stroke width because the
- * prototype uses 1.7 in the tools box, 1.8 in the nav pill and 2 on the tab "x".
+ * Icons come from the Material Icons dependency (filled, bold) - nothing here is
+ * drawn by hand. [get] maps the ids used by the bars and the tools box.
  */
 object ProtoIcons {
-    private val cache = HashMap<String, ImageVector>()
-
-    fun get(id: String, stroke: Float = 1.8f): ImageVector =
-        cache.getOrPut("$id@$stroke") { build(id, stroke) }
-
-    private fun circle(cx: Float, cy: Float, r: Float): String =
-        "M${cx - r} $cy a$r $r 0 1 0 ${2 * r} 0 a$r $r 0 1 0 ${-2 * r} 0"
-
-    private fun rect(x: Float, y: Float, w: Float, h: Float, rx: Float): String =
-        "M${x + rx} $y h${w - 2 * rx} a$rx $rx 0 0 1 $rx $rx v${h - 2 * rx} " +
-            "a$rx $rx 0 0 1 ${-rx} $rx h${-(w - 2 * rx)} a$rx $rx 0 0 1 ${-rx} ${-rx} " +
-            "v${-(h - 2 * rx)} a$rx $rx 0 0 1 $rx ${-rx} z"
-
-    private const val BOOKMARK = "M6 3h12v18l-6-4-6 4z"
-    private const val TABS_LINES = "M8 8h8M8 12h8"
-
-    private fun pathsFor(id: String): List<String> = when (id) {
-        // ---- nav pill / bars ---------------------------------------------
-        "tabs" -> listOf(rect(4f, 4f, 16f, 16f, 2f), TABS_LINES)
-        "home" -> listOf("m3 10 9-7 9 7v10H3z")
-        "back" -> listOf("m15 18-6-6 6-6")
-        "forward" -> listOf("m9 18 6-6-6-6")
-        "menu" -> listOf("M5 12h14")
-        "close" -> listOf("m6 6 12 12M18 6 6 18")
-        "pillsearch" -> listOf(circle(10.8f, 10.8f, 7.4f), "m16.3 16.3 5 5")
-        "plus" -> listOf("M12 5v14M5 12h14")
-        // ---- tools, page 1 -----------------------------------------------
-        "reload" -> listOf("M20 7v5h-5M20 12a8 8 0 1 1-2.3-5.7")
-        "search" -> listOf(circle(10.5f, 10.5f, 7f), "m16 16 5 5")
-        "closetab" -> listOf("M5 5h14v14H5zM8 8l8 8m0-8-8 8")
-        "history" -> listOf(circle(12f, 12f, 9f), "M12 7v5l3 2")
-        "bookmarks" -> listOf(BOOKMARK)
-        "downloads" -> listOf("M12 3v12m-5-5 5 5 5-5M4 19h16")
-        "share" -> listOf(
-            circle(18f, 5f, 3f), circle(6f, 12f, 3f), circle(18f, 19f, 3f),
-            "m9 11 6-5M9 13l6 5",
-        )
-        // ---- tools, page 2 -----------------------------------------------
-        "find" -> listOf(circle(10f, 10f, 6f), "m15 15 5 5M8 10h4")
-        "desktop" -> listOf(rect(3f, 4f, 18f, 13f, 2f), "M8 21h8m-4-4v4")
-        "translate" -> listOf("M3 5h12M9 3v2m-4 4c2 3 4 5 8 7m-5-7c-1 3-3 6-6 8m12-5 5 9m-8 0 5-9")
-        "settings" -> listOf(
-            circle(12f, 12f, 3f),
-            "m19 13 2 2-2 4-3-1-2 2h-4l-1-3-3-1-1-4 2-2V7l4-2 2 2h3l2 3z",
-        )
-        "privacy" -> listOf("M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11z", "m9 12 2 2 4-4")
-        "reader" -> listOf("M4 5h16M4 10h16M4 15h10M4 20h10")
-        "print" -> listOf("M6 9V3h12v6M6 18H4V9h16v9h-2M6 14h12v7H6z")
-        "addbookmark" -> listOf(BOOKMARK)
-        "cleardata" -> listOf("M4 7h16M10 11v6m4-6v6M6 7l1 14h10l1-14M9 7V4h6v3")
-        "fullscreen" -> listOf("M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5")
-        "zoomin" -> listOf(circle(10f, 10f, 7f), "M10 6v8m-4-4h8m2 2 5 5")
-        "zoomout" -> listOf(circle(10f, 10f, 7f), "M6 10h8m2 2 5 5")
-        else -> emptyList()
-    }
-
-    private fun build(id: String, stroke: Float): ImageVector {
-        val builder = ImageVector.Builder(
-            name = id,
-            defaultWidth = 24.dp,
-            defaultHeight = 24.dp,
-            viewportWidth = 24f,
-            viewportHeight = 24f,
-        )
-        pathsFor(id).forEach { d ->
-            builder.addPath(
-                pathData = PathParser().parsePathString(d).toNodes(),
-                fill = null,
-                stroke = SolidColor(Color.Black),
-                strokeLineWidth = stroke,
-                strokeLineCap = StrokeCap.Round,
-                strokeLineJoin = StrokeJoin.Round,
-            )
-        }
-        return builder.build()
+    @Suppress("UNUSED_PARAMETER")
+    fun get(id: String, stroke: Float = 1.8f): ImageVector = when (id) {
+        // ---- bars ----------------------------------------------------------
+        "back" -> Icons.AutoMirrored.Filled.ArrowBack
+        "forward" -> Icons.AutoMirrored.Filled.ArrowForward
+        "home" -> Icons.Filled.Home
+        "menu" -> Icons.Filled.Menu
+        "close" -> Icons.Filled.Close
+        "pillsearch", "search" -> Icons.Filled.Search
+        "plus" -> Icons.Filled.Add
+        // ---- tools: navigation -----------------------------------------------
+        "reload" -> Icons.Filled.Refresh
+        "stop" -> Icons.Filled.Cancel
+        "closetab" -> Icons.Filled.Close
+        "tabs" -> Icons.Filled.Tab
+        "duplicate" -> Icons.Filled.ContentCopy
+        "reopen" -> Icons.Filled.Restore
+        "closeothers" -> Icons.Filled.ClearAll
+        // ---- tools: page ---------------------------------------------------------
+        "find" -> Icons.Filled.FindInPage
+        "desktop" -> Icons.Filled.Computer
+        "translate" -> Icons.Filled.Translate
+        "addbookmark" -> Icons.Filled.BookmarkAdd
+        "bookmarks" -> Icons.Filled.Bookmarks
+        "history" -> Icons.Filled.History
+        "downloads" -> Icons.Filled.Download
+        "share" -> Icons.Filled.Share
+        "copylink" -> Icons.Filled.Link
+        "external" -> Icons.AutoMirrored.Filled.OpenInNew
+        "print" -> Icons.Filled.Print
+        "top" -> Icons.Filled.VerticalAlignTop
+        // ---- tools: browser ---------------------------------------------------------
+        "bottom" -> Icons.Filled.VerticalAlignBottom
+        "zoomin" -> Icons.Filled.ZoomIn
+        "zoomout" -> Icons.Filled.ZoomOut
+        "zoomreset" -> Icons.Filled.ZoomOutMap
+        "fullscreen" -> Icons.Filled.Fullscreen
+        "darkpages" -> Icons.Filled.Contrast
+        "privacy" -> Icons.Filled.Shield
+        "theme" -> Icons.Filled.DarkMode
+        "notes" -> Icons.Filled.StickyNote2
+        "cleardata" -> Icons.Filled.DeleteSweep
+        "addshortcut" -> Icons.Filled.AddBox
+        "settings" -> Icons.Filled.Settings
+        else -> Icons.Filled.Search
     }
 }
 
@@ -121,6 +123,7 @@ class ProtoColors(
     val tooltip: Color,
     val tooltipText: Color,
     val press: Color,
+    val circle: Color,
 )
 
 @Composable
@@ -138,6 +141,7 @@ fun protoColors(): ProtoColors {
             rowActive = Color(0xFFF1F1F1), dotIdle = Color(0xFFD7D7D7),
             dotActive = Color(0xFF222222), tooltip = Color(0xFF222222),
             tooltipText = Color.White, press = Color(0xFFF1F1F1),
+            circle = Color(0xFF171717),
         )
     } else {
         ProtoColors(
@@ -151,6 +155,7 @@ fun protoColors(): ProtoColors {
             rowActive = Color(0xFF1F1F23), dotIdle = Color(0xFF3A3A40),
             dotActive = Color(0xFFEDEDED), tooltip = Color(0xFFEDEDED),
             tooltipText = Color(0xFF0A0A0B), press = Color(0xFF1F1F23),
+            circle = Color(0xFF2B2B30),
         )
     }
 }
