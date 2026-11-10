@@ -1,7 +1,7 @@
 [versions]
 # ---- App version (single source of truth; CI reads these keys) ----
-voidVersionCode = "11"
-voidVersionName = "0.7.0"
+voidVersionCode = "12"
+voidVersionName = "0.7.1"
 
 # ---- Toolchain ----
 agp = "9.5.1"
