@@ -38,8 +38,24 @@ import androidx.compose.material.icons.filled.VerticalAlignTop
 import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material.icons.filled.ZoomOut
 import androidx.compose.material.icons.filled.ZoomOutMap
+import androidx.compose.material.icons.filled.Apps
+import androidx.compose.material.icons.filled.ContentPaste
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.HideImage
+import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.PowerSettingsNew
+import androidx.compose.material.icons.filled.SaveAlt
+import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import dev.voidapp.ui.UiPrefs
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
@@ -94,13 +110,25 @@ object ProtoIcons {
         "cleardata" -> Icons.Filled.DeleteSweep
         "addshortcut" -> Icons.Filled.AddBox
         "settings" -> Icons.Filled.Settings
+        "pastego" -> Icons.Filled.ContentPaste
+        "reader" -> Icons.Filled.MenuBook
+        "textonly" -> Icons.Filled.HideImage
+        "keepawake" -> Icons.Filled.Visibility
+        "screenshot" -> Icons.Filled.PhotoCamera
+        "saveoffline" -> Icons.Filled.SaveAlt
+        "clearcookies" -> Icons.Filled.DeleteForever
+        "clearhistory" -> Icons.Filled.Delete
+        "engine" -> Icons.Filled.SwapHoriz
+        "edithome" -> Icons.Filled.Apps
+        "appearance" -> Icons.Filled.Palette
+        "exit" -> Icons.Filled.PowerSettingsNew
         else -> Icons.Filled.Search
     }
 }
 
 /** The prototype's colours, with a matching dark set (the app keeps its dark theme). */
 @Immutable
-class ProtoColors(
+data class ProtoColors(
     val page: Color,
     val ink: Color,
     val line: Color,
@@ -124,10 +152,38 @@ class ProtoColors(
     val tooltipText: Color,
     val press: Color,
     val circle: Color,
+    val accent: Color = Color(0xFFE53935),
+    val barAlpha: Float = 1f,
+    val barRadius: Dp = 30.dp,
+    val barHeight: Dp = 51.dp,
+    val homeBg: Color = page,
 )
+
+/** Provided by the app shell so every screen sees the user's colour choices. */
+val LocalUiPrefs = staticCompositionLocalOf<UiPrefs?> { null }
 
 @Composable
 fun protoColors(): ProtoColors {
+    val ui = LocalUiPrefs.current
+    val base = baseColors()
+    if (ui == null) return base
+    val page = ui.pageBg ?: base.page
+    return base.copy(
+        page = page,
+        ink = ui.textColor ?: base.ink,
+        line = ui.barBorder ?: base.line,
+        soft = ui.barFill ?: base.soft,
+        navIcon = ui.barIcon ?: base.navIcon,
+        accent = ui.accent ?: base.accent,
+        barAlpha = ui.barAlpha,
+        barRadius = ui.barRadius.dp,
+        barHeight = ui.barHeight.dp,
+        homeBg = ui.homeBg ?: page,
+    )
+}
+
+@Composable
+private fun baseColors(): ProtoColors {
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     return if (!dark) {
         ProtoColors(

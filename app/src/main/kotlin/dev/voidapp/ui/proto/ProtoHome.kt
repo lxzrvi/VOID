@@ -93,7 +93,7 @@ fun ProtoHome(state: VoidAppState, modifier: Modifier = Modifier) {
 
     val brand = remember { Animatable(0f) }
 
-    BoxWithConstraints(modifier = modifier.fillMaxSize().background(c.page)) {
+    BoxWithConstraints(modifier = modifier.fillMaxSize().background(c.homeBg)) {
         val w = maxWidth
         val h = maxHeight
         val dim by animateFloatAsState(if (searchFocus) 0.3f else 1f, tween(300), label = "dim")
@@ -112,7 +112,7 @@ fun ProtoHome(state: VoidAppState, modifier: Modifier = Modifier) {
 
         Box(
             modifier = Modifier
-                .offset(y = h * 0.17f)
+                .offset(y = h * (state.ui.shortcutsTop / 100f))
                 .padding(horizontal = w * 0.05f)
                 .fillMaxWidth()
                 .graphicsLayer { alpha = dim },
@@ -160,33 +160,35 @@ fun ProtoHome(state: VoidAppState, modifier: Modifier = Modifier) {
 
         // ---- brand ----------------------------------------------------------
         val frame = brandFrame(brand.value)
-        val brandSize = with(density) { (w * 0.09f).coerceIn(36.dp, 46.dp).toSp() }
-        Text(
-            text = "VOID",
-            color = c.ink,
-            fontFamily = Poppins,
-            fontWeight = FontWeight.Light,
-            fontSize = brandSize,
-            letterSpacing = frame[1].sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier
-                .offset(y = h * 0.31f)
-                .fillMaxWidth()
-                .graphicsLayer {
-                    alpha = dim * frame[2]
-                    scaleX = frame[0]
-                    scaleY = frame[0]
-                }
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                ) {
-                    scope.launch {
-                        brand.snapTo(0f)
-                        brand.animateTo(1f, tween(650, easing = LinearEasing))
+        val brandSize = with(density) { ((w * 0.09f).coerceIn(36.dp, 46.dp) * state.ui.brandSize).toSp() }
+        if (state.ui.showBrand) {
+            Text(
+                text = state.ui.brandText,
+                color = state.ui.brandColor ?: c.ink,
+                fontFamily = Poppins,
+                fontWeight = FontWeight.Light,
+                fontSize = brandSize,
+                letterSpacing = frame[1].sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .offset(y = h * (state.ui.brandTop / 100f))
+                    .fillMaxWidth()
+                    .graphicsLayer {
+                        alpha = dim * frame[2]
+                        scaleX = frame[0]
+                        scaleY = frame[0]
                     }
-                },
-        )
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) {
+                        scope.launch {
+                            brand.snapTo(0f)
+                            brand.animateTo(1f, tween(650, easing = LinearEasing))
+                        }
+                    },
+            )
+        }
 
         // While the search pill has focus, a tap anywhere else lets go of it.
         if (searchFocus) {
@@ -198,15 +200,15 @@ fun ProtoHome(state: VoidAppState, modifier: Modifier = Modifier) {
         }
 
         // ---- centre search --------------------------------------------------
-        val pillShape = RoundedCornerShape(40.dp)
+        val pillShape = RoundedCornerShape(state.ui.searchRadius.dp)
         Box(
             modifier = Modifier
-                .offset(y = h * 0.5f)
+                .offset(y = h * (state.ui.searchTop / 100f))
                 .padding(horizontal = w * 0.05f)
                 .fillMaxWidth()
-                .height(47.dp)
+                .height(state.ui.searchHeight.dp)
                 .clip(pillShape)
-                .background(c.page)
+                .background(c.homeBg)
                 .border(1.dp, if (searchFocus) c.centerFocus else c.centerBorder, pillShape)
                 .padding(horizontal = 17.dp),
             contentAlignment = Alignment.CenterStart,
@@ -232,7 +234,7 @@ fun ProtoHome(state: VoidAppState, modifier: Modifier = Modifier) {
                     Box(contentAlignment = Alignment.CenterStart) {
                         if (text.isEmpty()) {
                             Text(
-                                text = "Search or enter address",
+                                text = state.ui.searchHint,
                                 color = c.placeholder,
                                 fontSize = 14.sp,
                                 fontFamily = Poppins,

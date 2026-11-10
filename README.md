@@ -183,3 +183,24 @@ The main page and all behaviour follow the HTML prototype:
 * **Settings** is a full screen page: home boxes (add a website, add a bookmark,
   reorder, remove), browser switches, theme, data.
 * **Icons** come from Material Icons (filled); nothing is hand-drawn any more.
+
+
+---
+
+## 0.7.0 - voidupdate2
+
+* **No tab row.** Tabs live in the hamburger's tabs box (long press a tab for its option
+  box), on the pill (swipe it left / right to change tab, the pill moves with you), and in
+  the tabs page (pull the pill up: the current page shrinks into its card).
+* **Status bar** wears the colour at the top of the site and scrolls away with the page, so
+  the site is shown full screen. The load line is at the bottom of the screen.
+* **Scrolling** folds the search bar and the nav pill into two separate circles; the search
+  circle grows only the search bar, the VOID circle grows only the pill.
+* **Hamburger:** the name sits under every icon; 48 tools on 4 pages; Settings > Hamburger
+  menu moves, removes and adds them.
+* **Downloads** are built in: a confirmation box (rename, shows the folder), a downloads
+  page with pause / resume / cancel / retry / open / delete and pause all / resume all.
+* **Settings** is a list of groups, each with its own page: Home page, Appearance,
+  Hamburger menu, Browser, Search, Downloads, Privacy & security, Advanced, About.
+* Appearance and Home page customise colours, bars, text size, wordmark, positions and
+  the search pill.

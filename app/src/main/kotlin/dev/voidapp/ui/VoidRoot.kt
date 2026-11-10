@@ -24,6 +24,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -46,6 +48,7 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Density
@@ -59,7 +62,10 @@ import dev.voidapp.ui.browser.BrowserScreen
 import dev.voidapp.ui.browser.TabGrid
 import dev.voidapp.ui.notes.NotesSheet
 import dev.voidapp.ui.settings.SettingsScreen
+import dev.voidapp.ui.downloads.DownloadConfirmDialog
+import dev.voidapp.ui.downloads.DownloadsScreen
 import dev.voidapp.ui.library.LibraryScreen
+import dev.voidapp.ui.proto.LocalUiPrefs
 import dev.voidapp.ui.proto.ProtoControls
 import dev.voidapp.ui.proto.ProtoHome
 import dev.voidapp.ui.theme.VoidTheme
@@ -84,6 +90,11 @@ private class PageClip(private val height: Float, private val radius: Float) : S
 @Composable
 fun VoidRoot() {
     val state = rememberVoidAppState()
+    state.systemDark = isSystemInDarkTheme()
+    LaunchedEffect(Unit) {
+        state.applyKeepAwake()
+        state.applyWebSettings()
+    }
 
     var confirmExit by remember { mutableStateOf(false) }
     val gridVisible by remember { derivedStateOf { state.tabProgress > 0.0005f || state.tabGridOpen } }
@@ -91,6 +102,7 @@ fun VoidRoot() {
     BackHandler(enabled = true) {
         when {
             confirmExit -> confirmExit = false
+            state.downloadsOpen -> state.downloadsOpen = false
             state.libraryOpen -> state.libraryOpen = false
             state.settingsOpen -> state.settingsOpen = false
             state.islandPanel != IslandPanel.None -> state.hidePanel()
@@ -111,13 +123,18 @@ fun VoidRoot() {
         val controller = WindowCompat.getInsetsController(window, view)
         val themeLight = !state.darkTheme
         controller.isAppearanceLightStatusBars = when {
-            gridVisible || state.libraryOpen || state.settingsOpen -> themeLight
-            state.browserOpen -> pageColor?.let { it.luminance() > 0.5f } ?: themeLight
+            gridVisible || state.libraryOpen || state.settingsOpen || state.downloadsOpen -> themeLight
+            state.browserOpen && state.ui.matchStatusBar -> pageColor?.let { it.luminance() > 0.5f } ?: themeLight
             else -> themeLight
         }
         controller.isAppearanceLightNavigationBars = themeLight
     }
 
+    val baseDensity = LocalDensity.current
+    CompositionLocalProvider(
+        LocalUiPrefs provides state.ui,
+        LocalDensity provides Density(baseDensity.density, baseDensity.fontScale * state.ui.uiScale),
+    ) {
     VoidTheme(darkTheme = state.darkTheme) {
         Box(
             modifier = Modifier
@@ -194,9 +211,14 @@ fun VoidRoot() {
                 LibraryScreen(state = state, modifier = Modifier.fillMaxSize())
             }
 
+            if (state.downloadsOpen) {
+                DownloadsScreen(state = state, modifier = Modifier.fillMaxSize())
+            }
+
             // The prototype's controls float over the page.
             AnimatedVisibility(
-                visible = !gridVisible && !state.libraryOpen && !state.settingsOpen && state.customView == null,
+                visible = !state.tabGridOpen && !state.libraryOpen && !state.settingsOpen &&
+                    !state.downloadsOpen && state.customView == null,
                 enter = fadeIn(tween(200)),
                 exit = fadeOut(tween(120)),
                 modifier = Modifier.fillMaxSize(),
@@ -233,6 +255,7 @@ fun VoidRoot() {
         }
 
         JsDialogHost(state)
+        DownloadConfirmDialog(state)
     }
 
     if (confirmExit) {
@@ -252,6 +275,7 @@ fun VoidRoot() {
                 }
             },
         )
+    }
     }
 }
 

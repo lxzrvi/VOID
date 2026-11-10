@@ -2,18 +2,12 @@ package dev.voidapp.ui.proto
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.text.input.TextFieldValue
-import androidx.compose.ui.window.PopupProperties
-import dev.voidapp.ui.components.AppMark
-import kotlinx.coroutines.delay
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -22,6 +16,8 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -32,6 +28,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -43,7 +40,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -55,33 +51,40 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
@@ -91,33 +94,40 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
+import androidx.compose.ui.window.PopupProperties
 import dev.voidapp.ui.BrowserTab
 import dev.voidapp.ui.VoidAppState
+import dev.voidapp.ui.components.AppMark
 import dev.voidapp.ui.theme.Poppins
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 import kotlin.math.max
 
 /**
- * Everything below the page, as in the prototype:
+ * Everything under the page:
  *
- *  - the tab row (italic tab names with an x, and a + button),
- *  - the bottom row: the home/search pill and the five-icon nav pill,
- *  - menu open: the nav pill grows upward into the paged tools box (the five icons
- *    stay in place at its bottom) and the tabs box rises above the home pill,
- *  - page scrolled: the nav pill folds into a dot, the tab row and the boxes hide.
- *
- * The literal prototype CSS pushes the grown pill off the bottom of the screen, so
- * both columns are aligned instead: the tabs box + home pill column is exactly as
- * tall as the grown pill.
+ *  - the search / address field and the nav pill (back, forward, home, hamburger);
+ *  - the hamburger grows the pill upward into the paged tools box (names under the
+ *    icons) and raises the tabs box above the search field;
+ *  - scrolling a page folds the search field and the pill into TWO separate circles;
+ *    tapping the search circle grows only the search field, tapping the VOID circle
+ *    grows only the pill;
+ *  - swiping the pill left / right changes tab, pulling it up shrinks the current
+ *    page into the tabs page.
  */
 @Composable
 fun ProtoControls(state: VoidAppState, modifier: Modifier = Modifier) {
     val c = protoColors()
     val density = LocalDensity.current
+    val haptics = LocalHapticFeedback.current
+    val scope = rememberCoroutineScope()
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val w = maxWidth
         val h = maxHeight
+        val maxHpx = with(density) { h.toPx() }
+        val stepPx = with(density) { 56.dp.toPx() }
 
         val navBottom = with(density) { WindowInsets.navigationBars.getBottom(density).toDp() }
         val imeBottom = with(density) { WindowInsets.ime.getBottom(density).toDp() }
@@ -125,21 +135,28 @@ fun ProtoControls(state: VoidAppState, modifier: Modifier = Modifier) {
         // in. Typing in the centre search of the Homepage leaves the bottom part put.
         val bottomInset = if (state.bottomFocus && imeBottom > navBottom) imeBottom else navBottom
 
+        val pillHeight = c.barHeight
         val rowBottom = h * 0.012f + bottomInset
-        val pillHeight = 51.dp
-        val tabRowBottom = rowBottom + 52.dp + 14.dp
 
         // Pages leave room under their content for these controls.
-        LaunchedEffect(h, navBottom) {
-            state.pageBottomInsetDp = (h * 0.012f + 52.dp + 14.dp + 32.dp + 16.dp + navBottom).value
+        LaunchedEffect(h, navBottom, pillHeight) {
+            state.pageBottomInsetDp = (h * 0.012f + pillHeight + 16.dp + navBottom).value
         }
 
-        val menuOpen = state.menuOpen
-        val collapsed = state.pageScrolled && state.browserOpen
-        LaunchedEffect(collapsed) { if (collapsed) state.closeMenu() }
-        val open = menuOpen && !collapsed
+        // ---- collapsing: two independent circles ------------------------------------
+        val scrolled = state.pageScrolled && state.browserOpen
+        var navForced by remember { mutableStateOf(false) }
+        var searchForced by remember { mutableStateOf(false) }
+        LaunchedEffect(scrolled, state.activeTabId) {
+            navForced = false
+            searchForced = false
+            if (scrolled) state.closeMenu()
+        }
+        val navCollapsed = scrolled && !navForced
+        val searchCollapsed = scrolled && !searchForced
+        val open = state.menuOpen && !navCollapsed
 
-        // ---- sizes, with the prototype's breakpoints ---------------------------
+        // ---- sizes, with the prototype's breakpoints ---------------------------------
         val rowWidth = w * 0.92f
         val gap = 9.dp
         val available = rowWidth - gap
@@ -150,19 +167,17 @@ fun ProtoControls(state: VoidAppState, modifier: Modifier = Modifier) {
             w <= 360.dp -> 230.dp
             else -> 245.dp
         }
+        val closedRadius = minOf(c.barRadius, pillHeight / 2)
 
-        val navWidth by animateDpAsState(
-            targetValue = when {
-                collapsed -> circleSize
-                open -> available / 1.88f
-                else -> navClosed
-            },
-            animationSpec = tween(350),
-            label = "navWidth",
-        )
+        val navWidthTarget = when {
+            navCollapsed -> circleSize
+            open -> available / 1.88f
+            else -> navClosed
+        }
+        val navWidth by animateDpAsState(navWidthTarget, tween(350), label = "navWidth")
         val navHeight by animateDpAsState(
             targetValue = when {
-                collapsed -> circleSize
+                navCollapsed -> circleSize
                 open -> openHeight
                 else -> pillHeight
             },
@@ -171,46 +186,99 @@ fun ProtoControls(state: VoidAppState, modifier: Modifier = Modifier) {
         )
         val navRadius by animateDpAsState(
             targetValue = when {
-                collapsed -> circleSize / 2
-                open -> 23.dp
-                else -> 30.dp
+                navCollapsed -> circleSize / 2
+                open -> minOf(23.dp, c.barRadius)
+                else -> closedRadius
             },
             animationSpec = tween(350),
             label = "navRadius",
         )
-        val navLift by animateDpAsState(if (collapsed) 3.dp else 0.5.dp, tween(300), label = "navLift")
         val openFraction by animateFloatAsState(if (open) 1f else 0f, tween(300), label = "open")
 
-        // The search bar shrinks away while the pill becomes the circle.
-        val leftWidth by animateDpAsState(
-            targetValue = if (collapsed) 0.dp else available - (if (open) available / 1.88f else navClosed),
+        val searchWidth by animateDpAsState(
+            targetValue = if (searchCollapsed) circleSize else available - navWidthTarget,
             animationSpec = tween(350),
-            label = "leftWidth",
+            label = "searchWidth",
         )
-        val gapWidth by animateDpAsState(if (collapsed) 0.dp else gap, tween(350), label = "gap")
+        val searchHeight by animateDpAsState(if (searchCollapsed) circleSize else pillHeight, tween(350), label = "searchHeight")
+        val searchRadius by animateDpAsState(
+            targetValue = if (searchCollapsed) circleSize / 2 else closedRadius,
+            animationSpec = tween(350),
+            label = "searchRadius",
+        )
+        val lift by animateDpAsState(if (searchCollapsed) 2.dp else 0.dp, tween(300), label = "lift")
+
+        // ---- gestures of the pill ----------------------------------------------------------
+        var swipeX by remember { mutableFloatStateOf(0f) }
+        var swipeY by remember { mutableFloatStateOf(0f) }
+        val pillGestures = Modifier.navGestures(
+            enabled = !open,
+            stepPx = stepPx,
+            onPullStart = { state.beginTabDrag() },
+            onPull = { total ->
+                swipeY = total.coerceIn(-maxHpx, 0f)
+                // The pill follows the finger and the page shrinks with it.
+                state.dragTabTo(-swipeY / (maxHpx * 0.45f))
+            },
+            onPullEnd = { velocityY ->
+                val pulled = -swipeY / (maxHpx * 0.45f)
+                val openGrid = pulled > 0.3f || (velocityY < -1400f && swipeY < -24f)
+                if (openGrid) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                state.endTabDrag(openGrid)
+                val from = swipeY
+                scope.launch {
+                    animate(0f, 1f, animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMedium)) { t, _ ->
+                        swipeY = from * (1f - t)
+                    }
+                    swipeY = 0f
+                }
+            },
+            onSlide = { offset -> swipeX = (offset * 0.6f).coerceIn(-stepPx, stepPx) },
+            onSlideStep = { direction ->
+                if (state.switchTabBy(direction)) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            },
+            onSlideEnd = {
+                val from = swipeX
+                scope.launch {
+                    animate(0f, 1f, animationSpec = spring(dampingRatio = 0.55f, stiffness = Spring.StiffnessMedium)) { t, _ ->
+                        swipeX = from * (1f - t)
+                    }
+                    swipeX = 0f
+                }
+            },
+        )
 
         // Find in page replaces the whole bottom part while it is open.
         if (!state.findOpen) {
-            // ---- tab row: pills, a little above the bottom search and nav pills ------
-            val tabRowAlpha by animateFloatAsState(
-                targetValue = if (collapsed || menuOpen) 0f else 1f,
-                animationSpec = tween(250),
-                label = "tabRow",
-            )
-            if (tabRowAlpha > 0.01f) {
-                TabRow(
-                    state = state,
-                    c = c,
+            // The tab you swiped to, shown for a moment above the pill.
+            var lastHint by remember { mutableStateOf("") }
+            LaunchedEffect(state.tabHint) { state.tabHint?.let { lastHint = it } }
+            AnimatedVisibility(
+                visible = state.tabHint != null,
+                enter = fadeIn(tween(120)),
+                exit = fadeOut(tween(300)),
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = w * 0.04f, bottom = rowBottom + pillHeight + 12.dp),
+            ) {
+                Box(
                     modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(start = w * 0.05f, end = w * 0.05f, bottom = tabRowBottom)
-                        .fillMaxWidth()
-                        .height(32.dp)
-                        .graphicsLayer { alpha = tabRowAlpha },
-                )
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(c.tooltip)
+                        .padding(horizontal = 12.dp, vertical = 7.dp),
+                ) {
+                    Text(
+                        text = lastHint,
+                        color = c.tooltipText,
+                        fontFamily = Poppins,
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.widthIn(max = 220.dp),
+                    )
+                }
             }
 
-            // ---- bottom row ---------------------------------------------------------
             Row(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
@@ -219,46 +287,263 @@ fun ProtoControls(state: VoidAppState, modifier: Modifier = Modifier) {
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.Bottom,
             ) {
-                if (leftWidth > 1.dp) {
-                    Column(
-                        modifier = Modifier.width(leftWidth).clipToBounds(),
-                        verticalArrangement = Arrangement.Bottom,
+                Column(
+                    modifier = Modifier
+                        .width(searchWidth)
+                        .clipToBounds()
+                        .graphicsLayer { alpha = (1f - state.tabProgress * 2f).coerceIn(0f, 1f) },
+                    verticalArrangement = Arrangement.Bottom,
+                ) {
+                    AnimatedVisibility(
+                        visible = open,
+                        enter = fadeIn(tween(300)) + expandVertically(tween(400)),
+                        exit = fadeOut(tween(200)) + shrinkVertically(tween(300)),
                     ) {
-                        AnimatedVisibility(
-                            visible = open,
-                            enter = fadeIn(tween(300)) + expandVertically(tween(400)),
-                            exit = fadeOut(tween(200)) + shrinkVertically(tween(300)),
-                        ) {
-                            Column {
-                                TabsBox(
-                                    state = state,
-                                    c = c,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(openHeight - pillHeight - gap),
-                                )
-                                Spacer(Modifier.height(gap))
-                            }
+                        Column {
+                            TabsBox(
+                                state = state,
+                                c = c,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(openHeight - pillHeight - gap),
+                            )
+                            Spacer(Modifier.height(gap))
                         }
-                        HomePill(
-                            state = state,
-                            c = c,
-                            modifier = Modifier.fillMaxWidth().height(pillHeight),
-                        )
                     }
+                    SearchPill(
+                        state = state,
+                        c = c,
+                        collapsed = searchCollapsed,
+                        radius = searchRadius,
+                        onExpand = { searchForced = true },
+                        modifier = Modifier
+                            .padding(bottom = lift)
+                            .fillMaxWidth()
+                            .height(searchHeight),
+                    )
                 }
-                Spacer(Modifier.width(gapWidth))
+                Spacer(Modifier.width(gap))
                 NavPill(
                     state = state,
                     c = c,
-                    collapsed = collapsed,
+                    collapsed = navCollapsed,
                     open = open,
                     openFraction = openFraction,
-                    modifier = Modifier
-                        .padding(bottom = navLift)
-                        .width(navWidth)
-                        .height(navHeight),
                     radius = navRadius,
+                    onExpand = { navForced = true },
+                    modifier = Modifier
+                        .padding(bottom = lift)
+                        .width(navWidth)
+                        .height(navHeight)
+                        .graphicsLayer {
+                            translationX = swipeX
+                            translationY = swipeY
+                        }
+                        .then(pillGestures),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Gestures of the nav pill (pill or circle), all read in the Initial pass and
+ * consumed once decided so the buttons never fire at the end of a drag:
+ *  - pull up: [onPull] gets the total travel, [onPullEnd] the release velocity;
+ *  - slide sideways: every [stepPx] is one tab ([onSlideStep] -1 previous / +1 next),
+ *    [onSlide] the leftover offset for the pill's own movement.
+ */
+private fun Modifier.navGestures(
+    enabled: Boolean,
+    stepPx: Float,
+    onPullStart: () -> Unit,
+    onPull: (Float) -> Unit,
+    onPullEnd: (Float) -> Unit,
+    onSlide: (Float) -> Unit,
+    onSlideStep: (Int) -> Unit,
+    onSlideEnd: () -> Unit,
+): Modifier = if (!enabled) {
+    this
+} else {
+    pointerInput(stepPx) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false)
+            val slop = viewConfiguration.touchSlop
+
+            // 1 = pull up, 2 = slide, 3 = ignore (a tap, or downwards)
+            var mode = 0
+            while (mode == 0) {
+                val event = awaitPointerEvent(PointerEventPass.Initial)
+                val change = event.changes.firstOrNull { it.id == down.id } ?: return@awaitEachGesture
+                if (change.isConsumed || !change.pressed) return@awaitEachGesture
+                val d = change.position - down.position
+                if (d.getDistance() > slop) {
+                    mode = if (abs(d.x) > abs(d.y)) 2 else if (d.y < 0f) 1 else 3
+                }
+            }
+
+            when (mode) {
+                1 -> {
+                    onPullStart()
+                    val tracker = VelocityTracker()
+                    tracker.addPosition(down.uptimeMillis, down.position)
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        tracker.addPosition(change.uptimeMillis, change.position)
+                        change.consume()
+                        if (!change.pressed) break
+                        onPull((change.position.y - down.position.y).coerceAtMost(0f))
+                    }
+                    onPullEnd(tracker.calculateVelocity().y)
+                }
+                2 -> {
+                    var steps = 0
+                    while (true) {
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        change.consume()
+                        if (!change.pressed) break
+                        val total = change.position.x - down.position.x
+                        val wanted = (total / stepPx).toInt()
+                        while (steps < wanted) {
+                            steps++
+                            onSlideStep(-1) // finger moved right: the previous tab
+                        }
+                        while (steps > wanted) {
+                            steps--
+                            onSlideStep(1) // finger moved left: the next tab
+                        }
+                        onSlide(total - steps * stepPx)
+                    }
+                    onSlideEnd()
+                }
+                else -> Unit
+            }
+        }
+    }
+}
+
+// =====================================================================================
+// Search / address pill
+// =====================================================================================
+
+@Composable
+private fun SearchPill(
+    state: VoidAppState,
+    c: ProtoColors,
+    collapsed: Boolean,
+    radius: Dp,
+    onExpand: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val focusManager = LocalFocusManager.current
+    val focusRequester = remember { FocusRequester() }
+    val shape = RoundedCornerShape(radius)
+    val url = state.activeTab?.url.orEmpty()
+
+    var focused by remember { mutableStateOf(false) }
+    var value by remember { mutableStateOf(TextFieldValue(url)) }
+    var wantFocus by remember { mutableStateOf(false) }
+
+    // The field shows the address of the current tab until it is being edited.
+    LaunchedEffect(url, state.activeTabId, focused) {
+        if (!focused) value = TextFieldValue(url)
+    }
+    // Focus selects the whole address, so one paste or keystroke replaces it.
+    LaunchedEffect(focused) {
+        state.bottomFocus = focused
+        if (focused) {
+            delay(60)
+            value = value.copy(selection = TextRange(0, value.text.length))
+        }
+    }
+    DisposableEffect(Unit) { onDispose { state.bottomFocus = false } }
+
+    // Tapping the search circle grows only this field, then types into it.
+    LaunchedEffect(collapsed, wantFocus) {
+        if (!collapsed && wantFocus) {
+            wantFocus = false
+            delay(120)
+            runCatching { focusRequester.requestFocus() }
+        }
+    }
+
+    // "Search" in the tools box focuses this field.
+    var lastRequest by remember { mutableIntStateOf(state.focusRequest) }
+    LaunchedEffect(state.focusRequest) {
+        if (state.focusRequest != lastRequest) {
+            lastRequest = state.focusRequest
+            if (collapsed) {
+                wantFocus = true
+                onExpand()
+            } else {
+                runCatching { focusRequester.requestFocus() }
+            }
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .clip(shape)
+            .background(c.soft.copy(alpha = c.barAlpha))
+            .border(1.dp, c.line, shape),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        if (collapsed) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) {
+                        wantFocus = true
+                        onExpand()
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(ProtoIcons.get("pillsearch"), "Search", tint = c.navIcon, modifier = Modifier.size(24.dp))
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Icon(ProtoIcons.get("pillsearch"), null, tint = c.navIcon, modifier = Modifier.size(22.dp))
+                BasicTextField(
+                    value = value,
+                    onValueChange = { value = it },
+                    singleLine = true,
+                    textStyle = TextStyle(color = c.ink, fontSize = 13.sp, fontFamily = Poppins),
+                    cursorBrush = SolidColor(c.ink),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = KeyboardActions(onSearch = {
+                        // A URL opens as it is, anything else is searched.
+                        val query = value.text
+                        focusManager.clearFocus()
+                        state.search(query)
+                    }),
+                    modifier = Modifier
+                        .weight(1f)
+                        .focusRequester(focusRequester)
+                        .onFocusChanged { focused = it.isFocused },
+                    decorationBox = { inner ->
+                        Box(contentAlignment = Alignment.CenterStart) {
+                            if (value.text.isEmpty()) {
+                                Text(
+                                    text = state.ui.searchHint,
+                                    color = c.placeholder,
+                                    fontSize = 13.sp,
+                                    fontFamily = Poppins,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            inner()
+                        }
+                    },
                 )
             }
         }
@@ -266,98 +551,227 @@ fun ProtoControls(state: VoidAppState, modifier: Modifier = Modifier) {
 }
 
 // =====================================================================================
-// Tab row: every tab is a pill, e.g. "Homepage x"
+// Nav pill: four icons, grows upward into the tools box, or folds into the VOID circle
 // =====================================================================================
 
 @Composable
-private fun TabRow(state: VoidAppState, c: ProtoColors, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier,
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+private fun NavPill(
+    state: VoidAppState,
+    c: ProtoColors,
+    collapsed: Boolean,
+    open: Boolean,
+    openFraction: Float,
+    radius: Dp,
+    onExpand: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val shape = RoundedCornerShape(radius)
+    val fill by animateColorAsState(
+        if (collapsed) c.circle else c.soft.copy(alpha = c.barAlpha),
+        tween(300),
+        label = "navFill",
+    )
+    val borderColor by animateColorAsState(if (collapsed) c.circle else c.line, tween(300), label = "navBorder")
+
+    Column(
+        modifier = modifier
+            .clip(shape)
+            .background(fill)
+            .border(1.dp, borderColor, shape),
+        verticalArrangement = Arrangement.Bottom,
     ) {
-        LazyRow(
-            modifier = Modifier.weight(1f).fillMaxHeight(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            items(state.tabs, key = { it.id }) { tab ->
-                TabChip(state, c, tab, active = tab.id == state.activeTabId)
+        if (collapsed) {
+            // Folded into a circle: the VOID mark, untouched. Tap to grow the pill.
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) { onExpand() },
+                contentAlignment = Alignment.Center,
+            ) {
+                AppMark(modifier = Modifier.size(26.dp), color = Color.White)
             }
+            return@Column
         }
-        Box(
+
+        if (openFraction > 0.02f) {
+            ToolsContent(
+                state = state,
+                c = c,
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .graphicsLayer { alpha = openFraction },
+            )
+        }
+
+        // The four icons never move: at the bottom of the pill, open or closed.
+        val closedRow = (c.barHeight.value - 2f)
+        val rowHeight = (closedRow + (42f - closedRow) * openFraction).dp
+        Row(
             modifier = Modifier
-                .size(30.dp)
-                .clip(CircleShape)
-                .background(c.soft)
-                .border(1.dp, c.line, CircleShape)
-                .clickable { state.startNewTab() },
-            contentAlignment = Alignment.Center,
+                .fillMaxWidth()
+                .height(rowHeight)
+                .padding(horizontal = 8.dp)
+                .padding(bottom = (5f * openFraction).dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceAround,
         ) {
-            Icon(ProtoIcons.get("plus"), "New tab", tint = c.navIcon, modifier = Modifier.size(18.dp))
+            NavButton("back", c) { state.browserBack() }
+            NavButton("forward", c) { state.browserForward() }
+            NavButton("home", c) {
+                state.goHome()
+                state.closeMenu()
+            }
+            MenuButton(c = c, open = open, onClick = { state.menuOpen = !state.menuOpen })
         }
     }
 }
 
-/** One tab: a pill with its name and an x. Long press opens its option box right there. */
 @Composable
-private fun TabChip(state: VoidAppState, c: ProtoColors, tab: BrowserTab, active: Boolean) {
+private fun NavButton(icon: String, c: ProtoColors, onClick: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    Box(
+        modifier = Modifier
+            .size(34.dp)
+            .clip(CircleShape)
+            .background(if (pressed) c.menuDot else Color.Transparent)
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(ProtoIcons.get(icon), icon, tint = c.navIcon, modifier = Modifier.size(23.dp))
+    }
+}
+
+/** The hamburger circle. Open: it turns into an x and rotates a quarter turn. */
+@Composable
+private fun MenuButton(c: ProtoColors, open: Boolean, onClick: () -> Unit) {
+    val rotation by animateFloatAsState(if (open) 90f else 0f, tween(300), label = "rotate")
+    Box(
+        modifier = Modifier
+            .size(34.dp)
+            .clip(CircleShape)
+            .background(c.menuDot)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = ProtoIcons.get(if (open) "close" else "menu"),
+            contentDescription = "Browser menu",
+            tint = c.navIcon,
+            modifier = Modifier.size(21.dp).rotate(rotation),
+        )
+    }
+}
+
+// =====================================================================================
+// Tabs box (above the search field while the menu is open)
+// =====================================================================================
+
+@Composable
+private fun TabsBox(state: VoidAppState, c: ProtoColors, modifier: Modifier = Modifier) {
+    val shape = RoundedCornerShape(17.dp)
+    Column(
+        modifier = modifier
+            .clip(shape)
+            .background(c.boxFill)
+            .border(1.dp, c.line, shape)
+            .padding(9.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().height(25.dp).padding(horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text("TABS", color = c.tabIdle, fontFamily = Poppins, fontWeight = FontWeight.Medium, fontSize = 10.sp)
+            Text(
+                text = state.tabs.size.toString() + if (state.tabs.size == 1) " TAB" else " TABS",
+                color = c.tabIdle.copy(alpha = 0.8f),
+                fontFamily = Poppins,
+                fontSize = 9.sp,
+            )
+        }
+        LazyColumn(
+            modifier = Modifier.weight(1f).fillMaxWidth().padding(vertical = 4.dp),
+        ) {
+            items(state.tabs, key = { it.id }) { tab ->
+                TabRowItem(state, c, tab, active = tab.id == state.activeTabId)
+            }
+        }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(c.line))
+        Row(
+            modifier = Modifier.fillMaxWidth().height(32.dp).padding(start = 4.dp, top = 3.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(25.dp)
+                    .clip(CircleShape)
+                    .border(1.dp, c.addBorder, CircleShape)
+                    .clickable { state.startNewTab() },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(ProtoIcons.get("plus"), "New tab", tint = c.navIcon, modifier = Modifier.size(15.dp))
+            }
+        }
+    }
+}
+
+/** One tab in the box. Tap = switch, x = close, long press = its option box, right there. */
+@Composable
+private fun TabRowItem(state: VoidAppState, c: ProtoColors, tab: BrowserTab, active: Boolean) {
     val density = LocalDensity.current
     var menu by remember { mutableStateOf(false) }
-    val color = if (active) c.tabActive else c.tabIdle
-    val shape = RoundedCornerShape(16.dp)
 
     Box {
         Row(
             modifier = Modifier
-                .height(30.dp)
-                .clip(shape)
-                .background(if (active) c.page else c.soft)
-                .border(1.dp, if (active) c.centerFocus else c.line, shape)
+                .fillMaxWidth()
+                .heightIn(min = 34.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(if (active) c.rowActive else Color.Transparent)
                 .pointerInput(tab.id) {
                     detectTapGestures(
                         onTap = { state.switchTab(tab.id) },
                         onLongPress = { menu = true },
                     )
                 }
-                .padding(start = 12.dp, end = 6.dp),
+                .padding(horizontal = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(5.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(
                 text = protoTabTitle(tab.url, tab.title),
-                color = color,
+                color = if (active) c.tabActive else c.tabIdle,
                 fontFamily = Poppins,
-                fontStyle = FontStyle.Italic,
-                fontWeight = FontWeight.Light,
-                fontSize = 11.sp,
+                fontSize = 10.sp,
                 maxLines = 1,
-                softWrap = false,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.widthIn(max = 130.dp),
+                modifier = Modifier.weight(1f),
             )
             Box(
                 modifier = Modifier
-                    .size(18.dp)
-                    .clip(CircleShape)
+                    .size(24.dp)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                     ) { state.closeTab(tab.id) },
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(
-                    ProtoIcons.get("close"),
-                    "Close tab",
-                    tint = color.copy(alpha = 0.7f),
-                    modifier = Modifier.size(13.dp),
-                )
+                Icon(ProtoIcons.get("close"), "Close tab", tint = c.tabIdle, modifier = Modifier.size(14.dp))
             }
         }
 
         if (menu) {
             Popup(
-                popupPositionProvider = AbovePopup(with(density) { 8.dp.roundToPx() }, centered = false),
+                popupPositionProvider = AbovePopup(with(density) { 6.dp.roundToPx() }, centered = false),
                 onDismissRequest = { menu = false },
                 properties = PopupProperties(focusable = true),
             ) {
@@ -433,300 +847,16 @@ private fun OptionRow(c: ProtoColors, icon: String, label: String, onClick: () -
 }
 
 // =====================================================================================
-// Home / search pill
-// =====================================================================================
-
-@Composable
-private fun HomePill(state: VoidAppState, c: ProtoColors, modifier: Modifier = Modifier) {
-    val focusManager = LocalFocusManager.current
-    val focusRequester = remember { FocusRequester() }
-    val shape = RoundedCornerShape(30.dp)
-    val url = state.activeTab?.url.orEmpty()
-
-    var focused by remember { mutableStateOf(false) }
-    var value by remember { mutableStateOf(TextFieldValue(url)) }
-
-    // The field shows the address of the current tab until it is being edited.
-    LaunchedEffect(url, state.activeTabId, focused) {
-        if (!focused) value = TextFieldValue(url)
-    }
-    // Focus selects the whole address, so one paste or keystroke replaces it.
-    LaunchedEffect(focused) {
-        state.bottomFocus = focused
-        if (focused) {
-            delay(60)
-            value = value.copy(selection = TextRange(0, value.text.length))
-        }
-    }
-    DisposableEffect(Unit) { onDispose { state.bottomFocus = false } }
-
-    // "Search" in the tools box focuses this field.
-    var lastRequest by remember { mutableIntStateOf(state.focusRequest) }
-    LaunchedEffect(state.focusRequest) {
-        if (state.focusRequest != lastRequest) {
-            lastRequest = state.focusRequest
-            runCatching { focusRequester.requestFocus() }
-        }
-    }
-
-    Row(
-        modifier = modifier
-            .clip(shape)
-            .background(c.soft)
-            .border(1.dp, c.line, shape)
-            .padding(horizontal = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Icon(
-            ProtoIcons.get("pillsearch"),
-            contentDescription = null,
-            tint = c.navIcon,
-            modifier = Modifier.size(22.dp),
-        )
-        BasicTextField(
-            value = value,
-            onValueChange = { value = it },
-            singleLine = true,
-            textStyle = TextStyle(color = c.ink, fontSize = 13.sp, fontFamily = Poppins),
-            cursorBrush = SolidColor(c.ink),
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            keyboardActions = KeyboardActions(onSearch = {
-                // A URL opens as it is, anything else is searched.
-                val query = value.text
-                focusManager.clearFocus()
-                state.search(query)
-            }),
-            modifier = Modifier
-                .weight(1f)
-                .focusRequester(focusRequester)
-                .onFocusChanged { focused = it.isFocused },
-            decorationBox = { inner ->
-                Box(contentAlignment = Alignment.CenterStart) {
-                    if (value.text.isEmpty()) {
-                        Text(
-                            text = "Search or enter address",
-                            color = c.placeholder,
-                            fontSize = 13.sp,
-                            fontFamily = Poppins,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    inner()
-                }
-            },
-        )
-    }
-}
-
-// =====================================================================================
-// Nav pill: five icons, grows upward into the tools box
-// =====================================================================================
-
-@Composable
-private fun NavPill(
-    state: VoidAppState,
-    c: ProtoColors,
-    collapsed: Boolean,
-    open: Boolean,
-    openFraction: Float,
-    radius: Dp,
-    modifier: Modifier = Modifier,
-) {
-    val shape = RoundedCornerShape(radius)
-    val fill by animateColorAsState(if (collapsed) c.circle else c.soft, tween(300), label = "navFill")
-    val borderColor by animateColorAsState(if (collapsed) c.circle else c.line, tween(300), label = "navBorder")
-
-    Column(
-        modifier = modifier
-            .clip(shape)
-            .background(fill)
-            .border(1.dp, borderColor, shape),
-        verticalArrangement = Arrangement.Bottom,
-    ) {
-        if (collapsed) {
-            // Search bar and pill folded into one circle: the VOID mark, untouched.
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                    ) { state.expandPill() },
-                contentAlignment = Alignment.Center,
-            ) {
-                AppMark(modifier = Modifier.size(26.dp), color = Color.White)
-            }
-            return@Column
-        }
-
-        if (openFraction > 0.02f) {
-            ToolsContent(
-                state = state,
-                c = c,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .graphicsLayer { alpha = openFraction },
-            )
-        }
-
-        // The four icons never move: at the bottom of the pill, open or closed.
-        val rowHeight = (49f + (42f - 49f) * openFraction).dp
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(rowHeight)
-                .padding(horizontal = 8.dp)
-                .padding(bottom = (5f * openFraction).dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceAround,
-        ) {
-            NavButton("back", c) { state.browserBack() }
-            NavButton("forward", c) { state.browserForward() }
-            NavButton("home", c) {
-                state.goHome()
-                state.closeMenu()
-            }
-            MenuButton(c = c, open = open, onClick = { state.menuOpen = !state.menuOpen })
-        }
-    }
-}
-
-@Composable
-private fun NavButton(icon: String, c: ProtoColors, onClick: () -> Unit) {
-    val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
-    Box(
-        modifier = Modifier
-            .size(34.dp)
-            .clip(CircleShape)
-            .background(if (pressed) c.menuDot else Color.Transparent)
-            .clickable(interactionSource = interaction, indication = null, onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(ProtoIcons.get(icon), icon, tint = c.navIcon, modifier = Modifier.size(23.dp))
-    }
-}
-
-/** The hamburger circle. Open: it turns into an x and rotates a quarter turn. */
-@Composable
-private fun MenuButton(c: ProtoColors, open: Boolean, onClick: () -> Unit) {
-    val rotation by animateFloatAsState(if (open) 90f else 0f, tween(300), label = "rotate")
-    Box(
-        modifier = Modifier
-            .size(34.dp)
-            .clip(CircleShape)
-            .background(c.menuDot)
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onClick,
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = ProtoIcons.get(if (open) "close" else "menu"),
-            contentDescription = "Browser menu",
-            tint = c.navIcon,
-            modifier = Modifier.size(21.dp).rotate(rotation),
-        )
-    }
-}
-
-// =====================================================================================
-// Tabs box (left column when the menu is open)
-// =====================================================================================
-
-@Composable
-private fun TabsBox(state: VoidAppState, c: ProtoColors, modifier: Modifier = Modifier) {
-    val shape = RoundedCornerShape(17.dp)
-    Column(
-        modifier = modifier
-            .clip(shape)
-            .background(c.boxFill)
-            .border(1.dp, c.line, shape)
-            .padding(9.dp),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().height(25.dp).padding(horizontal = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Text("TABS", color = c.tabIdle, fontFamily = Poppins, fontWeight = FontWeight.Medium, fontSize = 10.sp)
-            Text(
-                text = state.tabs.size.toString() + if (state.tabs.size == 1) " TAB" else " TABS",
-                color = c.tabIdle.copy(alpha = 0.8f),
-                fontFamily = Poppins,
-                fontSize = 9.sp,
-            )
-        }
-        LazyColumn(
-            modifier = Modifier.weight(1f).fillMaxWidth().padding(vertical = 4.dp),
-        ) {
-            items(state.tabs, key = { it.id }) { tab ->
-                val active = tab.id == state.activeTabId
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 34.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (active) c.rowActive else Color.Transparent)
-                        .clickable { state.switchTab(tab.id) }
-                        .padding(horizontal = 7.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Text(
-                        text = protoTabTitle(tab.url, tab.title),
-                        color = if (active) c.tabActive else c.tabIdle,
-                        fontFamily = Poppins,
-                        fontSize = 10.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                            ) { state.closeTab(tab.id) },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text("\u00D7", color = c.tabIdle, fontSize = 15.sp)
-                    }
-                }
-            }
-        }
-        Box(Modifier.fillMaxWidth().height(1.dp).background(c.line))
-        Row(
-            modifier = Modifier.fillMaxWidth().height(32.dp).padding(start = 4.dp, top = 3.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(25.dp)
-                    .clip(CircleShape)
-                    .border(1.dp, c.addBorder, CircleShape)
-                    .clickable { state.startNewTab() },
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(ProtoIcons.get("plus"), "New tab", tint = c.navIcon, modifier = Modifier.size(14.dp))
-            }
-        }
-    }
-}
-
-// =====================================================================================
-// Tools box: title, page dots, and two swipeable 3 x 4 pages
+// Tools box: pages of 3 x 4 tools, the name under every icon
 // =====================================================================================
 
 @Composable
 private fun ToolsContent(state: VoidAppState, c: ProtoColors, modifier: Modifier = Modifier) {
-    val pager = rememberPagerState(pageCount = { ProtoToolPages.size })
+    val tools = state.ui.menuToolIds.mapNotNull { ProtoToolById[it] }
+    val pages = tools.chunked(TOOLS_PER_PAGE)
+    val pageCount = max(1, pages.size)
+    val latestCount by rememberUpdatedState(pageCount)
+    val pager = rememberPagerState(pageCount = { latestCount })
     val scope = rememberCoroutineScope()
 
     Column(modifier = modifier.padding(start = 8.dp, end = 8.dp, top = 9.dp, bottom = 4.dp)) {
@@ -743,41 +873,54 @@ private fun ToolsContent(state: VoidAppState, c: ProtoColors, modifier: Modifier
                 fontSize = 10.sp,
                 letterSpacing = 0.4.sp,
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
-                ProtoToolPages.indices.forEach { index ->
-                    val active = pager.currentPage == index
-                    val dotWidth by animateDpAsState(if (active) 16.dp else 6.dp, tween(250), label = "dot")
-                    Box(
-                        modifier = Modifier
-                            .width(dotWidth)
-                            .height(6.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(if (active) c.dotActive else c.dotIdle)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                            ) { scope.launch { pager.animateScrollToPage(index) } },
-                    )
+            if (pageCount > 1) {
+                Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
+                    for (index in 0 until pageCount) {
+                        val active = pager.currentPage == index
+                        val dotWidth by animateDpAsState(if (active) 16.dp else 6.dp, tween(250), label = "dot")
+                        Box(
+                            modifier = Modifier
+                                .width(dotWidth)
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (active) c.dotActive else c.dotIdle)
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                ) { scope.launch { pager.animateScrollToPage(index) } },
+                        )
+                    }
                 }
             }
         }
-        HorizontalPager(
-            state = pager,
-            pageSpacing = 5.dp,
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-        ) { page ->
-            ToolGrid(state, c, ProtoToolPages[page])
+        if (tools.isEmpty()) {
+            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Text(
+                    "No tools. Add some in Settings > Hamburger menu.",
+                    color = c.tabIdle,
+                    fontFamily = Poppins,
+                    fontSize = 10.sp,
+                )
+            }
+        } else {
+            HorizontalPager(
+                state = pager,
+                pageSpacing = 5.dp,
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+            ) { page ->
+                ToolGrid(state, c, pages.getOrElse(page) { emptyList() })
+            }
         }
     }
 }
 
 @Composable
 private fun ToolGrid(state: VoidAppState, c: ProtoColors, tools: List<ProtoTool>) {
-    Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+    Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         for (row in 0 until 4) {
             Row(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 for (col in 0 until 3) {
                     val tool = tools.getOrNull(row * 3 + col)
@@ -792,7 +935,37 @@ private fun ToolGrid(state: VoidAppState, c: ProtoColors, tools: List<ProtoTool>
     }
 }
 
-/** A popup right above its anchor: centred (tooltips) or starting at the anchor's edge (option boxes). */
+@Composable
+private fun ToolCell(state: VoidAppState, c: ProtoColors, tool: ProtoTool, modifier: Modifier = Modifier) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val on = protoToolOn(state, tool.id)
+    val tint = if (on) c.accent else c.navIcon
+
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(9.dp))
+            .background(if (pressed) c.press else Color.Transparent)
+            .clickable(interactionSource = interaction, indication = null) { runProtoTool(state, tool.id) },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Icon(ProtoIcons.get(tool.icon, 1.7f), tool.name, tint = tint, modifier = Modifier.size(21.dp))
+        Spacer(Modifier.height(2.dp))
+        // The name sits right under its icon.
+        Text(
+            text = tool.name,
+            color = if (on) c.accent else c.label,
+            fontFamily = Poppins,
+            fontSize = 8.sp,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/** A popup right above its anchor, starting at the anchor's edge (option boxes). */
 private class AbovePopup(private val gapPx: Int, private val centered: Boolean = true) : PopupPositionProvider {
     override fun calculatePosition(
         anchorBounds: IntRect,
@@ -804,67 +977,5 @@ private class AbovePopup(private val gapPx: Int, private val centered: Boolean =
         val x = wanted.coerceIn(0, max(0, windowSize.width - popupContentSize.width))
         val y = max(0, anchorBounds.top - popupContentSize.height - gapPx)
         return IntOffset(x, y)
-    }
-}
-
-@Composable
-private fun ToolCell(state: VoidAppState, c: ProtoColors, tool: ProtoTool, modifier: Modifier = Modifier) {
-    var pressed by remember { mutableStateOf(false) }
-    var showName by remember { mutableStateOf(false) }
-    val density = LocalDensity.current
-
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(9.dp))
-            .background(if (pressed) c.press else Color.Transparent)
-            .pointerInput(tool.action) {
-                detectTapGestures(
-                    onPress = {
-                        pressed = true
-                        tryAwaitRelease()
-                        pressed = false
-                        showName = false
-                    },
-                    onLongPress = { showName = true },
-                    onTap = { runProtoTool(state, tool.action) },
-                )
-            },
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterVertically),
-        ) {
-            Icon(ProtoIcons.get(tool.icon, 1.7f), tool.name, tint = c.navIcon, modifier = Modifier.size(20.dp))
-            if (showName) {
-                Text(
-                    text = tool.name,
-                    color = c.label,
-                    fontFamily = Poppins,
-                    fontSize = 8.sp,
-                    maxLines = 1,
-                    softWrap = false,
-                )
-            }
-        }
-        if (showName) {
-            Popup(popupPositionProvider = AbovePopup(with(density) { 5.dp.roundToPx() })) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(5.dp))
-                        .background(c.tooltip)
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                ) {
-                    Text(
-                        text = tool.name,
-                        color = c.tooltipText,
-                        fontFamily = Poppins,
-                        fontSize = 10.sp,
-                        maxLines = 1,
-                        softWrap = false,
-                    )
-                }
-            }
-        }
     }
 }

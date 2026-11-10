@@ -55,6 +55,7 @@ private fun insetScript(topPx: Float, bottomPx: Float): String = """
       s = document.createElement('style'); s.id = '__void_inset';
       (document.head || document.documentElement).appendChild(s);
     }
+    window.__voidTop = top;
     s.textContent = 'html{padding-top:' + top + 'px !important;padding-bottom:' + bottom + 'px !important;scroll-padding-top:' + top + 'px !important;}';
   }
   function fix(){
@@ -82,10 +83,18 @@ private const val COLOR_SCRIPT = """
 (function(){
   var m = document.querySelector('meta[name=theme-color]');
   var c = m && m.content;
+  function bg(e){
+    while (e) {
+      var v = getComputedStyle(e).backgroundColor;
+      if (v && v !== 'rgba(0, 0, 0, 0)' && v !== 'transparent') return v;
+      e = e.parentElement;
+    }
+    return '';
+  }
   if (!c) {
-    var b = document.body && getComputedStyle(document.body).backgroundColor;
-    var h = getComputedStyle(document.documentElement).backgroundColor;
-    c = (b && b !== 'rgba(0, 0, 0, 0)' && b !== 'transparent') ? b : h;
+    var y = (window.__voidTop || 0) + 4;
+    var el = document.elementFromPoint(Math.floor(window.innerWidth / 2), y);
+    c = bg(el) || bg(document.body) || bg(document.documentElement);
   }
   return c || '';
 })()
@@ -120,6 +129,29 @@ fun parseCssColor(raw: String?): Color? {
         }
     }
     return null
+}
+
+/** Browser settings (JavaScript, cookies, text size, user agent...) applied to one page. */
+fun applyWebPrefs(view: WebView, state: VoidAppState, desktop: Boolean) {
+    val ui = state.ui
+    view.settings.apply {
+        javaScriptEnabled = ui.jsEnabled
+        textZoom = ui.textZoom
+        mediaPlaybackRequiresUserGesture = !ui.autoplay
+        blockNetworkImage = !ui.loadImages
+        safeBrowsingEnabled = ui.safeBrowsing
+        userAgentString = when {
+            desktop -> DESKTOP_UA
+            ui.customUa.isNotBlank() -> ui.customUa
+            else -> WebSettings.getDefaultUserAgent(view.context)
+        }
+    }
+    val cookieManager = CookieManager.getInstance()
+    cookieManager.setAcceptCookie(ui.cookies)
+    cookieManager.setAcceptThirdPartyCookies(view, ui.cookies && ui.thirdPartyCookies)
+    if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
+        WebSettingsCompat.setAlgorithmicDarkeningAllowed(view.settings, state.webDark)
+    }
 }
 
 /** Builds the WebView of one tab, wired to [state]. */
@@ -160,8 +192,7 @@ fun createTabWebView(context: Context, state: VoidAppState, tabId: Long): WebVie
         if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
             WebSettingsCompat.setAlgorithmicDarkeningAllowed(settings, state.webDark)
         }
-        CookieManager.getInstance().setAcceptCookie(true)
-        CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+        applyWebPrefs(this, state, startTab?.desktop == true)
 
         if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
             WebViewCompat.addDocumentStartJavaScript(
@@ -174,7 +205,10 @@ fun createTabWebView(context: Context, state: VoidAppState, tabId: Long): WebVie
         // Colour of the page, for the status-bar scrim and icon contrast.
         fun sampleColor(view: WebView) {
             view.evaluateJavascript(COLOR_SCRIPT) { value ->
-                runtime.pageColor = parseCssColor(value)
+                val parsed = parseCssColor(value)
+                runtime.pageColor = parsed
+                // Only a sample taken at the very top is the colour of the top of the page.
+                if (parsed != null && (view.scrollY <= 2 || runtime.topColor == null)) runtime.topColor = parsed
             }
         }
         val colorRunnable = Runnable { sampleColor(this) }
@@ -188,8 +222,8 @@ fun createTabWebView(context: Context, state: VoidAppState, tabId: Long): WebVie
             v.postDelayed(colorRunnable, 260)
         }
 
-        setDownloadListener { url, userAgent, disposition, mime, _ ->
-            state.startDownload(url, userAgent, disposition, mime)
+        setDownloadListener { url, userAgent, disposition, mime, contentLength ->
+            state.requestDownload(url, userAgent, disposition, mime, contentLength)
         }
 
         setFindListener { activeOrdinal, numberOfMatches, _ ->
@@ -239,6 +273,10 @@ fun createTabWebView(context: Context, state: VoidAppState, tabId: Long): WebVie
 
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val uri = request.url
+                if (request.isForMainFrame && state.ui.httpsOnly && uri.scheme.equals("http", ignoreCase = true)) {
+                    view.loadUrl(uri.buildUpon().scheme("https").build().toString())
+                    return true
+                }
                 return when (uri.scheme?.lowercase()) {
                     "http", "https", "about", "data", "blob", "javascript", "file" -> false
                     else -> {
@@ -416,6 +454,7 @@ fun createTabWebView(context: Context, state: VoidAppState, tabId: Long): WebVie
                 isUserGesture: Boolean,
                 resultMsg: Message,
             ): Boolean {
+                if (state.ui.blockPopups && !isUserGesture) return false
                 val transport = resultMsg.obj as? WebView.WebViewTransport ?: return false
                 val catcher = WebView(view.context)
                 catcher.webViewClient = object : WebViewClient() {

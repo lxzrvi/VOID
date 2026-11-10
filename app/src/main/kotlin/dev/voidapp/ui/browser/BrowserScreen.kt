@@ -194,38 +194,34 @@ fun BrowserScreen(
             modifier = Modifier.fillMaxSize(),
         )
 
-        // Scrim: scrolled content fades out under the status bar instead of a hard cut.
+        // Status bar band: wears the colour of the page's top and scrolls away WITH the
+        // page, so once you scroll the site is shown full screen.
+        val bandColor = if (state.ui.matchStatusBar) {
+            runtime.topColor ?: runtime.pageColor ?: surface
+        } else {
+            surface
+        }
         Box(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
-                .height(insetDp + 14.dp)
-                .background(
-                    Brush.verticalGradient(
-                        0f to pageColor.copy(alpha = 0.92f),
-                        0.6f to pageColor.copy(alpha = 0.55f),
-                        1f to Color.Transparent,
-                    ),
-                ),
+                .height(insetDp)
+                .graphicsLayer {
+                    translationY = -minOf(state.pageScrollY.toFloat(), insetPx.toFloat())
+                }
+                .background(bandColor),
         )
 
-        // Load progress: a hairline right under the status bar.
+        // Load progress: a line at the very bottom of the screen.
         val animatedProgress by animateFloatAsState(runtime.progress, label = "progress")
         if (animatedProgress < 1f) {
             Box(
                 modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .fillMaxWidth()
-                    .statusBarsPadding()
-                    .height(2.dp),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(animatedProgress.coerceIn(0.02f, 1f))
-                        .height(2.dp)
-                        .background(VoidRed),
-                )
-            }
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth(animatedProgress.coerceIn(0.02f, 1f))
+                    .height(3.dp)
+                    .background(state.ui.accent ?: VoidRed),
+            )
         }
 
         if (state.findOpen) {
@@ -327,16 +323,18 @@ fun BrowserScreen(
                 webView.pageDown(true)
             }
             override fun stop() = webView.stopLoading()
+            override fun evaluate(js: String, onResult: (String) -> Unit) {
+                webView.evaluateJavascript(js) { onResult(it.orEmpty()) }
+            }
+            override fun saveArchive(path: String, done: (Boolean) -> Unit) {
+                webView.saveWebArchive(path, false) { done(it != null) }
+            }
             override fun resetZoom() {
                 webView.settings.textZoom = 100
             }
 
             override fun setDesktopMode(enabled: Boolean) {
-                webView.settings.userAgentString = if (enabled) {
-                    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
-                } else {
-                    WebSettings.getDefaultUserAgent(webView.context)
-                }
+                applyWebPrefs(webView, state, enabled)
                 webView.reload()
             }
 

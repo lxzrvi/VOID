@@ -33,6 +33,8 @@ import androidx.compose.ui.platform.LocalContext
 import dev.voidapp.data.Background
 import dev.voidapp.data.BoxEdit
 import dev.voidapp.data.DayEvent
+import dev.voidapp.data.DownloadCenter
+import dev.voidapp.data.DownloadRequest
 import dev.voidapp.data.Note
 import dev.voidapp.data.OnThisDay
 import dev.voidapp.data.PageEntry
@@ -43,6 +45,8 @@ import dev.voidapp.data.VoidStore
 import dev.voidapp.data.urlForInput
 import dev.voidapp.ui.browser.BrowserBridge
 import dev.voidapp.ui.browser.BrowserHost
+import dev.voidapp.ui.browser.applyWebPrefs
+import dev.voidapp.ui.proto.protoTabTitle
 import dev.voidapp.ui.components.FaviconStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -97,6 +101,9 @@ class TabRuntime {
     var canGoBack by mutableStateOf(false)
     var canGoForward by mutableStateOf(false)
     var pageColor by mutableStateOf<Color?>(null)
+
+    /** Colour at the very top of the page (the status bar band wears it). */
+    var topColor by mutableStateOf<Color?>(null)
     var findCount by mutableIntStateOf(0)
     var findIndex by mutableIntStateOf(0)
 
@@ -127,6 +134,12 @@ class VoidAppState(
 ) : IslandActions {
 
     private var activity: Activity? = null
+
+    /** Every customisable look/behaviour value (persisted as it changes). */
+    val ui = UiPrefs(context)
+
+    /** The built-in download manager. */
+    val downloads = DownloadCenter(context, scope) { showToast(it) }
 
     fun attachActivity(value: Context) {
         activity = value as? Activity
@@ -450,7 +463,7 @@ class VoidAppState(
             id = nextTabId++,
             url = url,
             title = if (url.isBlank()) "Homepage" else "",
-            desktop = false,
+            desktop = ui.desktopDefault,
         )
         tabs.add(tab)
         activeTabId = tab.id
@@ -632,9 +645,15 @@ class VoidAppState(
             newTab(url)
             return
         }
-        tabs[index] = tabs[index].copy(url = url, title = "")
-        address = url
-        webViews[activeTabId]?.loadUrl(url)
+        val wasHome = tabs[index].url.isBlank()
+        val target = if (ui.httpsOnly && url.startsWith("http://")) "https://" + url.removePrefix("http://") else url
+        tabs[index] = tabs[index].copy(
+            url = target,
+            title = "",
+            desktop = tabs[index].desktop || (wasHome && ui.desktopDefault),
+        )
+        address = target
+        webViews[activeTabId]?.loadUrl(target)
         refreshScrolled()
         persistTabs()
     }
@@ -675,7 +694,12 @@ class VoidAppState(
     var pageScrolled by mutableStateOf(false)
         private set
 
+    /** Scroll offset of the current page in px; the status bar band scrolls away with it. */
+    var pageScrollY by mutableIntStateOf(0)
+        private set
+
     fun reportScrollY(y: Int) {
+        pageScrollY = y
         pageScrolled = y > 20 * context.resources.displayMetrics.density
     }
 
@@ -701,8 +725,9 @@ class VoidAppState(
     /** True while the bottom search field has focus: only then the bar rides up with the keyboard. */
     var bottomFocus by mutableStateOf(false)
 
-    /** Settings is a full screen page. */
+    /** Settings is a full screen page; [settingsPage] null shows the list of groups. */
     var settingsOpen by mutableStateOf(false)
+    var settingsPage by mutableStateOf<String?>(null)
 
     /** Height the bottom controls cover, so pages can leave room for them. */
     var pageBottomInsetDp by mutableFloatStateOf(120f)
@@ -724,8 +749,15 @@ class VoidAppState(
     }
 
     // ---- look & feel ------------------------------------------------------
-    var darkTheme by mutableStateOf(store.darkTheme)
-        private set
+    /** Set by the app shell from the system setting (used when the theme mode is "system"). */
+    var systemDark by mutableStateOf(false)
+
+    val darkTheme: Boolean
+        get() = when (ui.themeMode) {
+            1 -> false
+            2 -> true
+            else -> systemDark
+        }
 
     val desktopMode: Boolean get() = activeTab?.desktop ?: false
 
@@ -735,8 +767,7 @@ class VoidAppState(
         private set
 
     fun updateDarkTheme(value: Boolean) {
-        darkTheme = value
-        store.darkTheme = value
+        ui.themeMode = if (value) 2 else 1
     }
 
     fun toggleTheme() = updateDarkTheme(!darkTheme)
@@ -845,24 +876,185 @@ class VoidAppState(
         customViewCallback = null
     }
 
-    fun startDownload(url: String, userAgent: String?, disposition: String?, mime: String?) {
+    // ---- downloads ------------------------------------------------------------
+    var downloadsOpen by mutableStateOf(false)
+
+    /** A download waiting for the user's confirmation (name, path). */
+    var pendingDownload by mutableStateOf<DownloadRequest?>(null)
+
+    fun requestDownload(url: String, userAgent: String?, disposition: String?, mime: String?, length: Long) {
         if (!url.startsWith("http")) {
             showToast("This download type is not supported")
             return
         }
-        runCatching {
-            val name = android.webkit.URLUtil.guessFileName(url, disposition, mime)
-            val request = DownloadManager.Request(Uri.parse(url)).apply {
-                mime?.let { setMimeType(it) }
-                android.webkit.CookieManager.getInstance().getCookie(url)?.let { addRequestHeader("Cookie", it) }
-                userAgent?.let { addRequestHeader("User-Agent", it) }
-                setTitle(name)
-                setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, name)
+        val name = android.webkit.URLUtil.guessFileName(url, disposition, mime)
+        val request = DownloadRequest(
+            url = url,
+            userAgent = userAgent,
+            mime = mime,
+            length = length,
+            referer = currentUrl.ifBlank { null },
+            fileName = name,
+        )
+        if (ui.askDownload) pendingDownload = request else startDownload(request, name)
+    }
+
+    fun startDownload(request: DownloadRequest, name: String) {
+        pendingDownload = null
+        downloads.enqueue(request.copy(fileName = name.ifBlank { request.fileName }), ui.downloadFolder)
+        showToast("Downloading")
+    }
+
+    // ---- tab swipe on the nav pill ------------------------------------------------
+    var tabHint by mutableStateOf<String?>(null)
+        private set
+    private var hintJob: Job? = null
+
+    /** Moves to the previous (-1) / next (+1) tab. Returns false at either end. */
+    fun switchTabBy(delta: Int): Boolean {
+        val index = tabs.indexOfFirst { it.id == activeTabId }
+        if (index < 0) return false
+        val next = (index + delta).coerceIn(0, tabs.lastIndex)
+        if (next == index) return false
+        switchTab(tabs[next].id)
+        val tab = tabs[next]
+        tabHint = "${next + 1}/${tabs.size}  ${protoTabTitle(tab.url, tab.title)}"
+        hintJob?.cancel()
+        hintJob = scope.launch {
+            delay(1100)
+            tabHint = null
+        }
+        return true
+    }
+
+    // ---- more tools -------------------------------------------------------------------
+    fun pasteAndGo() {
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val clip = clipboard.primaryClip
+        val text = if (clip != null && clip.itemCount > 0) {
+            clip.getItemAt(0).coerceToText(context).toString().trim()
+        } else {
+            ""
+        }
+        if (text.isBlank()) showToast("Clipboard is empty") else search(text)
+    }
+
+    fun switchEngine() {
+        val all = SearchProvider.entries
+        val next = all[(all.indexOf(provider) + 1) % all.size]
+        selectProvider(next)
+        showToast("Search: ${next.label}")
+    }
+
+    fun toggleReader() {
+        val b = bridge
+        if (!browserOpen || b == null) {
+            showToast("Open a page first")
+            return
+        }
+        b.evaluate(READER_JS) { result ->
+            showToast(if (result.contains("on")) "Reader mode on" else "Reader mode off")
+        }
+    }
+
+    fun toggleTextOnly() {
+        ui.loadImages = !ui.loadImages
+        applyWebSettings()
+        showToast(if (ui.loadImages) "Images on" else "Text only (reload the page)")
+    }
+
+    fun toggleKeepAwake() {
+        ui.keepAwake = !ui.keepAwake
+        applyKeepAwake()
+        showToast(if (ui.keepAwake) "Screen stays on" else "Screen may sleep")
+    }
+
+    fun applyKeepAwake() {
+        val window = activity?.window ?: return
+        if (ui.keepAwake) {
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
+    /** Pushes the browser settings to every open page. */
+    fun applyWebSettings() {
+        WebView.setWebContentsDebuggingEnabled(ui.debugging)
+        webViews.forEach { (id, view) ->
+            runCatching {
+                applyWebPrefs(view, this, tabs.firstOrNull { it.id == id }?.desktop == true)
             }
-            (context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager).enqueue(request)
-            showToast("Downloading $name")
-        }.onFailure { showToast("Download failed") }
+        }
+    }
+
+    fun clearCookies() {
+        android.webkit.CookieManager.getInstance().removeAllCookies(null)
+        showToast("Cookies cleared")
+    }
+
+    fun clearCache() {
+        webViews.values.forEach { it.clearCache(true) }
+        showToast("Cache cleared")
+    }
+
+    fun saveOffline() {
+        val b = bridge
+        if (!browserOpen || b == null) {
+            showToast("Open a page first")
+            return
+        }
+        val name = b.currentTitle.ifBlank { "page" }.take(40).replace(Regex("[^A-Za-z0-9 _-]"), "_") + ".mht"
+        val temp = java.io.File(context.cacheDir, "page-${System.currentTimeMillis()}.mht")
+        b.saveArchive(temp.absolutePath) { ok ->
+            if (!ok) {
+                showToast("Could not save the page")
+            } else {
+                scope.launch {
+                    val uri = withContext(Dispatchers.IO) {
+                        runCatching {
+                            downloads.publish(temp, name, "application/x-mimearchive", ui.downloadFolder)
+                        }.getOrNull()
+                    }
+                    temp.delete()
+                    showToast(
+                        if (uri != null) "Saved to ${downloads.displayPath(ui.downloadFolder)}/$name"
+                        else "Could not save the page",
+                    )
+                }
+            }
+        }
+    }
+
+    fun screenshot() {
+        val bitmap = bridge?.takeIf { browserOpen }?.snapshot(1080)
+        if (bitmap == null) {
+            showToast("Open a page first")
+            return
+        }
+        scope.launch {
+            val ok = withContext(Dispatchers.IO) { runCatching { savePicture(bitmap) }.isSuccess }
+            showToast(if (ok) "Screenshot saved to Pictures/VOID" else "Could not save the screenshot")
+        }
+    }
+
+    private fun savePicture(bitmap: android.graphics.Bitmap) {
+        val name = "VOID-${System.currentTimeMillis()}.png"
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            val values = android.content.ContentValues().apply {
+                put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, name)
+                put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/png")
+                put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, "Pictures/VOID")
+            }
+            val resolver = context.contentResolver
+            val uri = resolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                ?: throw java.io.IOException("insert failed")
+            resolver.openOutputStream(uri)?.use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+        } else {
+            val dir = java.io.File(context.getExternalFilesDir(android.os.Environment.DIRECTORY_PICTURES), "VOID")
+            dir.mkdirs()
+            java.io.File(dir, name).outputStream().use { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+        }
     }
 
     // ---- island actions ---------------------------------------------------
@@ -893,6 +1085,14 @@ class VoidAppState(
     }
 
     override fun openSettings() {
+        settingsPage = null
+        settingsOpen = true
+        menuOpen = false
+    }
+
+    /** Opens Settings straight on one of its pages (e.g. "home", "appearance", "menu"). */
+    fun openSettingsPage(page: String) {
+        settingsPage = page
         settingsOpen = true
         menuOpen = false
     }
@@ -976,11 +1176,8 @@ class VoidAppState(
     }
 
     override fun openDownloads() {
-        runCatching {
-            context.startActivity(
-                Intent(DownloadManager.ACTION_VIEW_DOWNLOADS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-            )
-        }
+        downloadsOpen = true
+        menuOpen = false
     }
 
     // ---- link helpers (bar long-press menu) -------------------------------
@@ -1030,6 +1227,16 @@ class VoidAppState(
     }
 
     companion object {
+        /** Toggles a simple reader view on the current page; answers "on" or "off". */
+        const val READER_JS = "(function(){var id='__void_reader';var s=document.getElementById(id);" +
+            "if(s){s.remove();return 'off';}s=document.createElement('style');s.id=id;" +
+            "s.textContent='header,nav,aside,footer,[role=banner],[role=navigation],[class*=sidebar]," +
+            "[class*=cookie],[class*=advert],[id*=ads],iframe{display:none!important}" +
+            "body{max-width:720px!important;margin:0 auto!important;padding:16px!important;" +
+            "font-size:19px!important;line-height:1.7!important;background:#fbf9f4!important;" +
+            "color:#222!important}img{max-width:100%!important;height:auto!important}';" +
+            "document.documentElement.appendChild(s);return 'on';})()"
+
         /** Tools in their default order: the usual suspects first. */
         val DEFAULT_TOOLS = listOf(
             "back", "forward", "reload", "home", "tabs", "newtab",

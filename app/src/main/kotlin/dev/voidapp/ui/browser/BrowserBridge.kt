@@ -24,6 +24,12 @@ interface BrowserBridge {
     fun scrollToBottom()
     fun stop()
     fun resetZoom()
+
+    /** Runs a script in the page and hands back its (JSON) result. */
+    fun evaluate(js: String, onResult: (String) -> Unit)
+
+    /** Saves the page as an MHTML archive at [path]. */
+    fun saveArchive(path: String, done: (Boolean) -> Unit)
     fun setDesktopMode(enabled: Boolean)
     fun applyWebDark(enabled: Boolean)
 
