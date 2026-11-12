@@ -8,6 +8,8 @@ import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -64,11 +66,16 @@ import dev.voidapp.ui.notes.NotesSheet
 import dev.voidapp.ui.settings.SettingsScreen
 import dev.voidapp.ui.downloads.DownloadConfirmDialog
 import dev.voidapp.ui.downloads.DownloadsScreen
+import dev.voidapp.ui.downloads.FlyingFileOverlay
 import dev.voidapp.ui.library.LibraryScreen
+import dev.voidapp.ui.proto.LocalHaze
 import dev.voidapp.ui.proto.LocalUiPrefs
+import dev.voidapp.ui.proto.Motion
 import dev.voidapp.ui.proto.ProtoControls
 import dev.voidapp.ui.proto.ProtoHome
 import dev.voidapp.ui.theme.VoidTheme
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.hazeSource
 
 /** Clips the shrinking page to the card it is landing in (rounded, top-anchored). */
 private class PageClip(private val height: Float, private val radius: Float) : Shape {
@@ -91,6 +98,8 @@ private class PageClip(private val height: Float, private val radius: Float) : S
 fun VoidRoot() {
     val state = rememberVoidAppState()
     state.systemDark = isSystemInDarkTheme()
+    val haze = remember { HazeState() }
+    val motion = remember(state.ui.animStyle, state.ui.animSpeed) { Motion(state.ui.animStyle, state.ui.animSpeed) }
     LaunchedEffect(Unit) {
         state.applyKeepAwake()
         state.applyWebSettings()
@@ -110,7 +119,7 @@ fun VoidRoot() {
             state.findOpen -> state.findOpen = false
             state.menuOpen -> state.closeMenu()
             state.browserOpen -> state.browserBack()
-            else -> confirmExit = true
+            !state.backFromHomepage() -> confirmExit = true
         }
     }
 
@@ -133,6 +142,7 @@ fun VoidRoot() {
     val baseDensity = LocalDensity.current
     CompositionLocalProvider(
         LocalUiPrefs provides state.ui,
+        LocalHaze provides haze,
         LocalDensity provides Density(baseDensity.density, baseDensity.fontScale * state.ui.uiScale),
     ) {
     VoidTheme(darkTheme = state.darkTheme) {
@@ -152,6 +162,12 @@ fun VoidRoot() {
                     .fillMaxSize()
                     .graphicsLayer {
                         val p = state.tabProgress.coerceIn(0f, 1.04f)
+                        // Once the grid is open the live page hands over to its card.
+                        alpha = if (state.tabGridOpen) {
+                            1f - ((p - 0.9f) / 0.1f).coerceIn(0f, 1f)
+                        } else {
+                            1f
+                        }
                         if (p > 0.0005f) {
                             val rect = state.activeCardRect ?: Rect(
                                 size.width * 0.34f,
@@ -171,7 +187,8 @@ fun VoidRoot() {
                                 radius = lerp(0f, 14.dp.toPx(), p) / s,
                             )
                         }
-                    },
+                    }
+                    .hazeSource(state = haze),
             ) {
                 AnimatedContent(
                     targetState = state.browserOpen,
@@ -203,15 +220,13 @@ fun VoidRoot() {
                 }
             }
 
-            if (state.settingsOpen) {
+            ScreenOverlay(visible = state.settingsOpen, motion = motion) {
                 SettingsScreen(state = state, modifier = Modifier.fillMaxSize())
             }
-
-            if (state.libraryOpen) {
+            ScreenOverlay(visible = state.libraryOpen, motion = motion) {
                 LibraryScreen(state = state, modifier = Modifier.fillMaxSize())
             }
-
-            if (state.downloadsOpen) {
+            ScreenOverlay(visible = state.downloadsOpen, motion = motion) {
                 DownloadsScreen(state = state, modifier = Modifier.fillMaxSize())
             }
 
@@ -227,6 +242,9 @@ fun VoidRoot() {
             }
 
             SheetHost(state)
+
+            // The file icon of a confirmed download, flying into the bottom circle.
+            FlyingFileOverlay(state)
 
             // Toasts: a small pill above the controls.
             AnimatedVisibility(
@@ -276,6 +294,19 @@ fun VoidRoot() {
             },
         )
     }
+    }
+}
+
+/** A full screen that slides up with a spring and fades, and slides back down. */
+@Composable
+private fun ScreenOverlay(visible: Boolean, motion: Motion, content: @Composable () -> Unit) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = slideInVertically(motion.screen()) { it / 6 } + fadeIn(tween(if (motion.instant) 1 else 200)),
+        exit = slideOutVertically(motion.screen()) { it / 6 } + fadeOut(tween(if (motion.instant) 1 else 160)),
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        content()
     }
 }
 

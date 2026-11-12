@@ -204,3 +204,31 @@ The main page and all behaviour follow the HTML prototype:
   Hamburger menu, Browser, Search, Downloads, Privacy & security, Advanced, About.
 * Appearance and Home page customise colours, bars, text size, wordmark, positions and
   the search pill.
+
+
+---
+
+## 0.8.0 - voidupdate4
+
+* **Motion:** every transition is a spring (Settings > Motion & blur: Bouncy / Smooth / Off,
+  speed). Overlays slide up, settings pages slide sideways, the pill, circles and boxes
+  grow with a wobble, home boxes pop in one by one.
+* **Live blur:** bars, circles and the tabs box blur the page behind them with Haze
+  (Settings > Motion & blur). Needs Android 12+; older phones get the translucent bar.
+* **Circles:** the search circle and the VOID circle now share one background.
+* **Status bar:** by default every page starts *below* the status bar, so headers (YouTube,
+  GitHub...) never slide under it. "Scrolls away" is still available in Appearance.
+* **Back:** closes what is open, then page history, then returns to the tab it was opened
+  from (that tab closes), then the Homepage; on a Homepage opened from another tab it
+  returns there.
+* **Swipes:** nav pill = tab left/right (or pull up for the tabs page); search bar = page
+  back (swipe right) / forward (swipe left), forward again after a back. All tunable in
+  Settings > Gestures.
+* **Tabs page:** the live page glides into its card and hands over to it - no leftover layer.
+* **Downloads:** long press a download for open / open with / share / rename / copy link /
+  properties / download again / remove / delete; tap a finished file to open it. After
+  confirming a download the file's format icon flies into the bottom circle, the circle's
+  border becomes the combined progress ring, and on completion the icon morphs into a tick
+  and back.
+* **Settings:** every page is made of sections that fold open with a spring; new pages for
+  Motion & blur and Gestures.

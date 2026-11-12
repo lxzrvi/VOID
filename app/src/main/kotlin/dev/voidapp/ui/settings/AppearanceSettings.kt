@@ -39,13 +39,11 @@ import kotlin.math.roundToInt
 internal fun AppearanceSettings(state: VoidAppState, c: ProtoColors) {
     val ui = state.ui
 
-    SectionTitle(c, "THEME")
-    Panel(c) {
+    Section(c, "Theme", initiallyOpen = true) {
         ChoiceRow(c, listOf("System", "Light", "Dark"), ui.themeMode) { ui.themeMode = it }
     }
 
-    SectionTitle(c, "COLOURS")
-    Panel(c) {
+    Section(c, "Colours", initiallyOpen = false) {
         ColorRow(c, "Accent (progress line, switches on)", ui.accent) { ui.accent = it }
         ColorRow(c, "App background", ui.pageBg) { ui.pageBg = it }
         ColorRow(c, "Bar fill", ui.barFill) { ui.barFill = it }
@@ -54,23 +52,21 @@ internal fun AppearanceSettings(state: VoidAppState, c: ProtoColors) {
         ColorRow(c, "Text", ui.textColor) { ui.textColor = it }
     }
 
-    SectionTitle(c, "BARS")
-    Panel(c) {
+    Section(c, "Bars", initiallyOpen = false) {
         SliderRow(c, "Transparency", "${(ui.barAlpha * 100).roundToInt()}%", ui.barAlpha, 0.2f..1f) { ui.barAlpha = it }
         SliderRow(c, "Corner radius", "${ui.barRadius.roundToInt()} dp", ui.barRadius, 0f..30f) { ui.barRadius = it }
         SliderRow(c, "Height", "${ui.barHeight.roundToInt()} dp", ui.barHeight, 40f..64f) { ui.barHeight = it }
     }
 
-    SectionTitle(c, "TEXT SIZE")
-    Panel(c) {
+    Section(c, "Text size", initiallyOpen = false) {
         SliderRow(c, "Everything in the app", "${(ui.uiScale * 100).roundToInt()}%", ui.uiScale, 0.8f..1.3f) { ui.uiScale = it }
     }
 
-    SectionTitle(c, "STATUS BAR")
-    Panel(c) {
+    Section(c, "Status bar", initiallyOpen = false) {
         SwitchRow(c, "Match the page's top colour", ui.matchStatusBar) { ui.matchStatusBar = it }
+        ChoiceRow(c, listOf("Page below the bar", "Scrolls away"), ui.statusMode) { ui.statusMode = it }
     }
-    Note(c, "On: the status bar wears the colour of each site's top and scrolls away with the page. Off: it keeps the app's background.")
+    Note(c, "Page below the bar: every site starts under the status bar, so headers like YouTube's or GitHub's never slide beneath it. Scrolls away: the page starts under the bar and the bar's colour scrolls off with it (full screen pages, headers may sit under the icons).")
 
     Spacer(Modifier.height(4.dp))
     ActionButton(c, "Reset appearance") { ui.resetAppearance() }
@@ -85,8 +81,7 @@ internal fun MenuSettings(state: VoidAppState, c: ProtoColors) {
 
     Note(c, "${tools.size} tools on $pages page${if (pages == 1) "" else "s"} (12 per page: 3 columns x 4 rows).")
 
-    SectionTitle(c, "IN THE MENU")
-    Panel(c) {
+    Section(c, "In the menu", initiallyOpen = false) {
         if (tools.isEmpty()) Note(c, "Nothing here. Add tools below.")
         tools.forEachIndexed { index, tool ->
             Row(
@@ -118,8 +113,7 @@ internal fun MenuSettings(state: VoidAppState, c: ProtoColors) {
         }
     }
 
-    SectionTitle(c, "AVAILABLE")
-    Panel(c) {
+    Section(c, "Available", initiallyOpen = false) {
         val rest = ProtoToolCatalog.filter { it.id !in ids }
         if (rest.isEmpty()) Note(c, "Every tool is already in the menu.")
         rest.forEach { tool ->

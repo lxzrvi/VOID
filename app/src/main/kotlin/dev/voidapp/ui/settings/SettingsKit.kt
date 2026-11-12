@@ -1,5 +1,7 @@
 package dev.voidapp.ui.settings
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -26,6 +29,12 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.rotate
+import dev.voidapp.ui.proto.rememberMotion
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -76,6 +85,61 @@ internal fun Panel(c: ProtoColors, content: @Composable () -> Unit) {
     }
 }
 
+/**
+ * A card with a title that folds open and shut with a spring; the chevron turns with it.
+ * Every settings page is built from these, one topic each.
+ */
+@Composable
+internal fun Section(
+    c: ProtoColors,
+    title: String,
+    subtitle: String? = null,
+    initiallyOpen: Boolean = false,
+    content: @Composable () -> Unit,
+) {
+    val motion = rememberMotion()
+    var open by rememberSaveable(title) { mutableStateOf(initiallyOpen) }
+    val turn by animateFloatAsState(if (open) 180f else 0f, motion.pop(), label = "turn")
+    val shape = RoundedCornerShape(18.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(c.soft)
+            .border(1.dp, c.line, shape)
+            .animateContentSize(motion.soft()),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { open = !open }
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, color = c.ink, fontFamily = Poppins, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                if (subtitle != null) {
+                    Text(subtitle, color = c.tabIdle, fontFamily = Poppins, fontSize = 11.sp)
+                }
+            }
+            Icon(
+                Icons.Filled.KeyboardArrowDown,
+                null,
+                tint = c.tabIdle,
+                modifier = Modifier.size(24.dp).rotate(turn),
+            )
+        }
+        if (open) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                content()
+            }
+        }
+    }
+}
+
 @Composable
 internal fun Note(c: ProtoColors, text: String) {
     Text(
@@ -95,6 +159,7 @@ internal fun SliderRow(
     value: Float,
     range: ClosedFloatingPointRange<Float>,
     steps: Int = 0,
+    enabled: Boolean = true,
     onChange: (Float) -> Unit,
 ) {
     Column(modifier = Modifier.padding(vertical = 4.dp)) {
@@ -107,6 +172,7 @@ internal fun SliderRow(
             onValueChange = onChange,
             valueRange = range,
             steps = steps,
+            enabled = enabled,
             colors = SliderDefaults.colors(
                 thumbColor = c.ink,
                 activeTrackColor = c.ink,

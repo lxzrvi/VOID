@@ -1,7 +1,7 @@
 [versions]
 # ---- App version (single source of truth; CI reads these keys) ----
-voidVersionCode = "12"
-voidVersionName = "0.7.1"
+voidVersionCode = "13"
+voidVersionName = "0.8.0"
 
 # ---- Toolchain ----
 agp = "9.5.1"
@@ -20,6 +20,7 @@ androidxWebkit = "1.18.0"
 androidxSplashscreen = "1.2.0"
 coroutines = "1.11.0"
 coil = "3.6.3"
+haze = "1.6.10"
 
 
 [libraries]
@@ -32,6 +33,7 @@ compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview"
 compose-foundation = { module = "androidx.compose.foundation:foundation" }
 compose-material3 = { module = "androidx.compose.material3:material3" }
 compose-material-icons-extended = { module = "androidx.compose.material:material-icons-extended" }
+haze = { module = "dev.chrisbanes.haze:haze", version.ref = "haze" }
 
 # AndroidX
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidxActivity" }

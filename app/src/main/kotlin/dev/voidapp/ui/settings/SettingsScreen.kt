@@ -1,6 +1,14 @@
 package dev.voidapp.ui.settings
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,6 +32,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Home
@@ -33,6 +42,7 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -49,6 +59,7 @@ import dev.voidapp.data.SearchProvider
 import dev.voidapp.ui.VoidAppState
 import dev.voidapp.ui.proto.ProtoColors
 import dev.voidapp.ui.proto.protoColors
+import dev.voidapp.ui.proto.rememberMotion
 import dev.voidapp.ui.theme.Poppins
 import kotlin.math.roundToInt
 
@@ -57,7 +68,9 @@ private class Group(val page: String, val title: String, val subtitle: String, v
 private val Groups = listOf(
     Group("home", "Home page", "Boxes, wordmark, layout, search pill", Icons.Filled.Home),
     Group("appearance", "Appearance", "Theme, colours, bars, text size", Icons.Filled.Palette),
+    Group("motion", "Motion & blur", "Animation style, speed, live blur", Icons.Filled.AutoAwesome),
     Group("menu", "Hamburger menu", "Move, remove and add tools", Icons.Filled.Menu),
+    Group("gestures", "Gestures", "Swipes, pull-up, haptics, back button", Icons.Filled.TouchApp),
     Group("browser", "Browser", "Pages, text size, media, screen", Icons.Filled.Language),
     Group("search", "Search", "Search engine and suggestions", Icons.Filled.Search),
     Group("downloads", "Downloads", "Confirmation, folder, manager", Icons.Filled.Download),
@@ -102,35 +115,56 @@ fun SettingsScreen(state: VoidAppState, modifier: Modifier = Modifier) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = c.ink, modifier = Modifier.size(22.dp))
             }
             Spacer(Modifier.width(12.dp))
-            Text(
-                text = group?.title ?: "Settings",
-                color = c.ink,
-                fontFamily = Poppins,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 22.sp,
-            )
+            Crossfade(targetState = group?.title ?: "Settings", animationSpec = tween(180), label = "title") { title ->
+                Text(
+                    text = title,
+                    color = c.ink,
+                    fontFamily = Poppins,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 22.sp,
+                )
+            }
         }
 
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            when (page) {
-                "home" -> HomePageSettings(state, c)
-                "appearance" -> AppearanceSettings(state, c)
-                "menu" -> MenuSettings(state, c)
-                "browser" -> BrowserSettings(state, c)
-                "search" -> SearchSettings(state, c)
-                "downloads" -> DownloadSettings(state, c)
-                "privacy" -> PrivacySettings(state, c)
-                "advanced" -> AdvancedSettings(state, c)
-                "about" -> AboutSettings(state, c)
-                else -> GroupList(state, c)
+        val motion = rememberMotion()
+        val fast = if (motion.instant) 1 else 180
+        AnimatedContent(
+            targetState = page,
+            transitionSpec = {
+                if (targetState != null) {
+                    (slideInHorizontally(motion.screen()) { it / 3 } + fadeIn(tween(fast))) togetherWith
+                        (slideOutHorizontally(motion.screen()) { -it / 5 } + fadeOut(tween(fast / 2)))
+                } else {
+                    (slideInHorizontally(motion.screen()) { -it / 5 } + fadeIn(tween(fast))) togetherWith
+                        (slideOutHorizontally(motion.screen()) { it / 3 } + fadeOut(tween(fast / 2)))
+                }
+            },
+            modifier = Modifier.weight(1f),
+            label = "settingsPage",
+        ) { current ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                when (current) {
+                    "home" -> HomePageSettings(state, c)
+                    "appearance" -> AppearanceSettings(state, c)
+                    "motion" -> MotionSettings(state, c)
+                    "menu" -> MenuSettings(state, c)
+                    "gestures" -> GestureSettings(state, c)
+                    "browser" -> BrowserSettings(state, c)
+                    "search" -> SearchSettings(state, c)
+                    "downloads" -> DownloadSettings(state, c)
+                    "privacy" -> PrivacySettings(state, c)
+                    "advanced" -> AdvancedSettings(state, c)
+                    "about" -> AboutSettings(state, c)
+                    else -> GroupList(state, c)
+                }
+                Spacer(Modifier.height(28.dp))
             }
-            Spacer(Modifier.height(28.dp))
         }
     }
 }
@@ -178,10 +212,51 @@ private fun GroupList(state: VoidAppState, c: ProtoColors) {
 // =============================================================================
 
 @Composable
+private fun MotionSettings(state: VoidAppState, c: ProtoColors) {
+    val ui = state.ui
+    Section(c, "Animation style", "How everything moves", initiallyOpen = true) {
+        ChoiceRow(c, listOf("Bouncy", "Smooth", "Off"), ui.animStyle) { ui.animStyle = it }
+        SliderRow(c, "Speed", "${(ui.animSpeed * 100).roundToInt()}%", ui.animSpeed, 0.6f..1.6f) { ui.animSpeed = it }
+    }
+    Note(c, "Bouncy overshoots and settles, Smooth glides without overshoot, Off removes animations.")
+
+    Section(c, "Live blur", "Bars blur the page behind them", initiallyOpen = true) {
+        SwitchRow(c, "Blur behind bars", ui.blurEnabled) { ui.blurEnabled = it }
+        SliderRow(c, "Blur strength", "${ui.blurRadius.roundToInt()} dp", ui.blurRadius, 0f..40f, enabled = ui.blurEnabled) { ui.blurRadius = it }
+        SliderRow(c, "Frost grain", "${(ui.blurNoise * 100).roundToInt()}%", ui.blurNoise, 0f..0.2f, enabled = ui.blurEnabled) { ui.blurNoise = it }
+    }
+    Note(c, "Live blur needs Android 12 or newer; older phones show the plain translucent bar. Make bars more see-through in Appearance > Bars.")
+}
+
+@Composable
+private fun GestureSettings(state: VoidAppState, c: ProtoColors) {
+    val ui = state.ui
+    Section(c, "Nav pill", "Back, forward, home, menu", initiallyOpen = true) {
+        SwitchRow(c, "Swipe sideways to change tab", ui.tabSwipe) { ui.tabSwipe = it }
+        SwitchRow(c, "Pull up to open the tabs page", ui.pullToTabs) { ui.pullToTabs = it }
+        SliderRow(c, "Pull distance to open", "${(ui.pullThreshold * 100).roundToInt()}%", ui.pullThreshold, 0.15f..0.6f, enabled = ui.pullToTabs) {
+            ui.pullThreshold = it
+        }
+    }
+    Section(c, "Search bar", "The address field", initiallyOpen = true) {
+        SwitchRow(c, "Swipe sideways for page back / forward", ui.historySwipe) { ui.historySwipe = it }
+    }
+    Note(c, "Swipe right = back, swipe left = forward. After going back you can swipe forward again.")
+    Section(c, "Feel", "Distance and feedback", initiallyOpen = true) {
+        SliderRow(c, "Swipe distance per step", "${ui.swipeStep.roundToInt()} dp", ui.swipeStep, 36f..100f) { ui.swipeStep = it }
+        SwitchRow(c, "Haptic feedback", ui.haptics) { ui.haptics = it }
+    }
+    Section(c, "Back button", "System back", initiallyOpen = true) {
+        SwitchRow(c, "Back closes a tab opened from another tab", ui.backClosesOpener) { ui.backClosesOpener = it }
+    }
+    Note(c, "Back goes: close what is open, then page history, then the tab it came from, then the Homepage.")
+    ActionButton(c, "Reset gestures") { ui.resetGestures() }
+}
+
+@Composable
 private fun BrowserSettings(state: VoidAppState, c: ProtoColors) {
     val ui = state.ui
-    SectionTitle(c, "PAGES")
-    Panel(c) {
+    Section(c, "Pages", initiallyOpen = true) {
         SwitchRow(c, "Dark web pages", state.webDark) { state.updateWebDark(it) }
         SwitchRow(c, "Open sites as desktop by default", ui.desktopDefault) { ui.desktopDefault = it }
         SwitchRow(c, "Load images", ui.loadImages) {
@@ -197,8 +272,7 @@ private fun BrowserSettings(state: VoidAppState, c: ProtoColors) {
             state.applyWebSettings()
         }
     }
-    SectionTitle(c, "SCREEN")
-    Panel(c) {
+    Section(c, "Screen", initiallyOpen = true) {
         SwitchRow(c, "Keep the screen on", ui.keepAwake) {
             ui.keepAwake = it
             state.applyKeepAwake()
@@ -209,8 +283,7 @@ private fun BrowserSettings(state: VoidAppState, c: ProtoColors) {
 
 @Composable
 private fun SearchSettings(state: VoidAppState, c: ProtoColors) {
-    SectionTitle(c, "SEARCH ENGINE")
-    Panel(c) {
+    Section(c, "Search engine", initiallyOpen = true) {
         SearchProvider.entries.forEach { provider ->
             Row(
                 modifier = Modifier
@@ -234,8 +307,7 @@ private fun SearchSettings(state: VoidAppState, c: ProtoColors) {
             }
         }
     }
-    SectionTitle(c, "SUGGESTIONS")
-    Panel(c) {
+    Section(c, "Suggestions", initiallyOpen = true) {
         SwitchRow(c, "Show search suggestions", state.suggestionsEnabled) { state.updateSuggestionsEnabled(it) }
     }
 }
@@ -243,22 +315,19 @@ private fun SearchSettings(state: VoidAppState, c: ProtoColors) {
 @Composable
 private fun DownloadSettings(state: VoidAppState, c: ProtoColors) {
     val ui = state.ui
-    SectionTitle(c, "BEFORE A DOWNLOAD")
-    Panel(c) {
+    Section(c, "Before a download", initiallyOpen = true) {
         SwitchRow(c, "Ask before downloading", ui.askDownload) { ui.askDownload = it }
     }
     Note(c, "On: a box shows the file name (you can rename it) and where it will be saved.")
 
-    SectionTitle(c, "WHERE FILES GO")
-    Panel(c) {
+    Section(c, "Where files go", initiallyOpen = true) {
         TextRow(c, "Folder name", ui.downloadFolder, "VOID") {
             ui.downloadFolder = it.filter { ch -> ch.isLetterOrDigit() || ch == ' ' || ch == '_' || ch == '-' }
         }
     }
     Note(c, "Saved to ${state.downloads.displayPath(ui.downloadFolder.ifBlank { "VOID" })}")
 
-    SectionTitle(c, "MANAGER")
-    Panel(c) {
+    Section(c, "Manager", initiallyOpen = true) {
         ValueRow(c, "Open the downloads page", "${state.downloads.items.size}") {
             state.settingsOpen = false
             state.downloadsOpen = true
@@ -272,13 +341,11 @@ private fun DownloadSettings(state: VoidAppState, c: ProtoColors) {
 @Composable
 private fun PrivacySettings(state: VoidAppState, c: ProtoColors) {
     val ui = state.ui
-    SectionTitle(c, "BLOCKING")
-    Panel(c) {
+    Section(c, "Blocking", initiallyOpen = true) {
         SwitchRow(c, "Block ads & trackers", state.blockAds) { state.updateBlockAds(it) }
         SwitchRow(c, "Block pop-ups", ui.blockPopups) { ui.blockPopups = it }
     }
-    SectionTitle(c, "COOKIES")
-    Panel(c) {
+    Section(c, "Cookies", initiallyOpen = true) {
         SwitchRow(c, "Allow cookies", ui.cookies) {
             ui.cookies = it
             state.applyWebSettings()
@@ -288,16 +355,14 @@ private fun PrivacySettings(state: VoidAppState, c: ProtoColors) {
             state.applyWebSettings()
         }
     }
-    SectionTitle(c, "SECURITY")
-    Panel(c) {
+    Section(c, "Security", initiallyOpen = true) {
         SwitchRow(c, "Safe browsing", ui.safeBrowsing) {
             ui.safeBrowsing = it
             state.applyWebSettings()
         }
         SwitchRow(c, "HTTPS only (upgrade http links)", ui.httpsOnly) { ui.httpsOnly = it }
     }
-    SectionTitle(c, "CLEAR")
-    Panel(c) {
+    Section(c, "Clear", initiallyOpen = true) {
         ValueRow(c, "Clear cookies") { state.clearCookies() }
         ValueRow(c, "Clear cache") { state.clearCache() }
         ValueRow(c, "Clear history") {
@@ -311,8 +376,7 @@ private fun PrivacySettings(state: VoidAppState, c: ProtoColors) {
 @Composable
 private fun AdvancedSettings(state: VoidAppState, c: ProtoColors) {
     val ui = state.ui
-    SectionTitle(c, "PAGES")
-    Panel(c) {
+    Section(c, "Pages", initiallyOpen = true) {
         SwitchRow(c, "JavaScript", ui.jsEnabled) {
             ui.jsEnabled = it
             state.applyWebSettings()
@@ -326,8 +390,7 @@ private fun AdvancedSettings(state: VoidAppState, c: ProtoColors) {
             state.applyWebSettings()
         }
     }
-    SectionTitle(c, "RESET")
-    Panel(c) {
+    Section(c, "Reset", initiallyOpen = true) {
         ValueRow(c, "Reset browser settings") {
             ui.resetBrowser()
             state.applyWebSettings()

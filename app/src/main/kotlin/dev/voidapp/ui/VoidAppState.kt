@@ -91,6 +91,8 @@ data class BrowserTab(
     val url: String,
     val title: String = "",
     val desktop: Boolean = false,
+    /** The tab this one was opened from (0 = none): back on its first page returns there. */
+    val openerId: Long = 0L,
 )
 
 /** Live, UI-facing state of one tab's WebView. */
@@ -464,6 +466,7 @@ class VoidAppState(
             url = url,
             title = if (url.isBlank()) "Homepage" else "",
             desktop = ui.desktopDefault,
+            openerId = activeTab?.id ?: 0L,
         )
         tabs.add(tab)
         activeTabId = tab.id
@@ -609,7 +612,11 @@ class VoidAppState(
             animate(
                 initialValue = tabProgress,
                 targetValue = target,
-                animationSpec = spring(dampingRatio = 0.86f, stiffness = Spring.StiffnessMediumLow),
+                animationSpec = when (ui.animStyle) {
+                    2 -> androidx.compose.animation.core.snap()
+                    1 -> spring(dampingRatio = 0.95f, stiffness = 380f * ui.animSpeed)
+                    else -> spring(dampingRatio = 0.68f, stiffness = 300f * ui.animSpeed)
+                },
             ) { value, _ -> tabProgress = value }
             tabProgress = target
         }
@@ -728,6 +735,9 @@ class VoidAppState(
     /** Settings is a full screen page; [settingsPage] null shows the list of groups. */
     var settingsOpen by mutableStateOf(false)
     var settingsPage by mutableStateOf<String?>(null)
+
+    /** CSS px injected above the page: 0 when the page sits below the status bar. */
+    var pageTopInsetDp by mutableFloatStateOf(0f)
 
     /** Height the bottom controls cover, so pages can leave room for them. */
     var pageBottomInsetDp by mutableFloatStateOf(120f)
@@ -899,10 +909,22 @@ class VoidAppState(
         if (ui.askDownload) pendingDownload = request else startDownload(request, name)
     }
 
+    /** A file icon that flies from the confirmation box into the bottom circle. */
+    class FlyingFile(val id: Long, val name: String)
+
+    var flyingFile by mutableStateOf<FlyingFile?>(null)
+
+    /** Where the bottom circle is on screen (window px), set by the circle that is visible. */
+    var downloadTarget by mutableStateOf<androidx.compose.ui.geometry.Offset?>(null)
+
+    /** Bumped when the flying icon lands: the circle pulses. */
+    var downloadPulse by mutableIntStateOf(0)
+
     fun startDownload(request: DownloadRequest, name: String) {
         pendingDownload = null
-        downloads.enqueue(request.copy(fileName = name.ifBlank { request.fileName }), ui.downloadFolder)
-        showToast("Downloading")
+        val finalName = name.ifBlank { request.fileName }
+        downloads.enqueue(request.copy(fileName = finalName), ui.downloadFolder)
+        flyingFile = FlyingFile(System.currentTimeMillis(), finalName)
     }
 
     // ---- tab swipe on the nav pill ------------------------------------------------
@@ -918,13 +940,17 @@ class VoidAppState(
         if (next == index) return false
         switchTab(tabs[next].id)
         val tab = tabs[next]
-        tabHint = "${next + 1}/${tabs.size}  ${protoTabTitle(tab.url, tab.title)}"
+        showHint("${next + 1}/${tabs.size}  ${protoTabTitle(tab.url, tab.title)}")
+        return true
+    }
+
+    private fun showHint(text: String) {
+        tabHint = text
         hintJob?.cancel()
         hintJob = scope.launch {
             delay(1100)
             tabHint = null
         }
-        return true
     }
 
     // ---- more tools -------------------------------------------------------------------
@@ -1058,10 +1084,58 @@ class VoidAppState(
     }
 
     // ---- island actions ---------------------------------------------------
+    /**
+     * Back, in order: page history; then the tab it was opened from (this tab closes);
+     * then the Homepage. On a Homepage see [backFromHomepage].
+     */
     override fun browserBack() {
+        val tab = activeTab ?: return
         if (!browserOpen) return
         val b = bridge
-        if (b != null && b.canGoBack) b.back() else goHome()
+        if (b != null && b.canGoBack) {
+            b.back()
+            return
+        }
+        if (returnToOpener(tab)) return
+        goHome()
+    }
+
+    private fun returnToOpener(tab: BrowserTab): Boolean {
+        if (!ui.backClosesOpener || tab.openerId == 0L || tabs.none { it.id == tab.openerId }) return false
+        val opener = tab.openerId
+        closeTab(tab.id)
+        switchTab(opener)
+        return true
+    }
+
+    /** Back on a Homepage tab: returns to the tab it was opened from. False = nothing to go back to. */
+    fun backFromHomepage(): Boolean {
+        val tab = activeTab ?: return false
+        if (browserOpen) return false
+        return returnToOpener(tab)
+    }
+
+    /** Swipe on the search bar: -1 = page back, +1 = page forward (also forward again after a back). */
+    fun historyStep(delta: Int): Boolean {
+        val b = bridge ?: return false
+        if (!browserOpen) return false
+        return if (delta < 0) {
+            if (b.canGoBack) {
+                b.back()
+                showHint("Back")
+                true
+            } else {
+                false
+            }
+        } else {
+            if (b.canGoForward) {
+                b.forward()
+                showHint("Forward")
+                true
+            } else {
+                false
+            }
+        }
     }
 
     override fun browserForward() {

@@ -62,30 +62,26 @@ internal fun HomePageSettings(state: VoidAppState, c: ProtoColors) {
         ColorRow(c, "Letter colour", state.boxTextColor) { state.updateBoxTextColor(it) }
     }
 
-    SectionTitle(c, "WORDMARK")
-    Panel(c) {
+    Section(c, "Wordmark", initiallyOpen = true) {
         SwitchRow(c, "Show the wordmark", ui.showBrand) { ui.showBrand = it }
         TextRow(c, "Text", ui.brandText, "VOID") { ui.brandText = it }
         SliderRow(c, "Size", "${(ui.brandSize * 100).roundToInt()}%", ui.brandSize, 0.5f..2f) { ui.brandSize = it }
         ColorRow(c, "Colour", ui.brandColor) { ui.brandColor = it }
     }
 
-    SectionTitle(c, "LAYOUT")
-    Panel(c) {
+    Section(c, "Layout", initiallyOpen = false) {
         SliderRow(c, "Boxes position", "${ui.shortcutsTop.roundToInt()}%", ui.shortcutsTop, 4f..45f) { ui.shortcutsTop = it }
         SliderRow(c, "Wordmark position", "${ui.brandTop.roundToInt()}%", ui.brandTop, 12f..60f) { ui.brandTop = it }
         SliderRow(c, "Search position", "${ui.searchTop.roundToInt()}%", ui.searchTop, 25f..78f) { ui.searchTop = it }
     }
 
-    SectionTitle(c, "SEARCH PILL")
-    Panel(c) {
+    Section(c, "Search pill", initiallyOpen = false) {
         SliderRow(c, "Height", "${ui.searchHeight.roundToInt()} dp", ui.searchHeight, 36f..72f) { ui.searchHeight = it }
         SliderRow(c, "Corner radius", "${ui.searchRadius.roundToInt()} dp", ui.searchRadius, 0f..40f) { ui.searchRadius = it }
         TextRow(c, "Placeholder text", ui.searchHint, "Search or enter address") { ui.searchHint = it }
     }
 
-    SectionTitle(c, "BACKGROUND")
-    Panel(c) {
+    Section(c, "Background", initiallyOpen = false) {
         ColorRow(c, "Homepage colour", ui.homeBg) { ui.homeBg = it }
     }
 

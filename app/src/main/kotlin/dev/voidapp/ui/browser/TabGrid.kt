@@ -1,5 +1,6 @@
 package dev.voidapp.ui.browser
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -25,6 +26,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,6 +51,7 @@ import dev.voidapp.ui.BrowserTab
 import dev.voidapp.ui.VoidAppState
 import dev.voidapp.ui.components.Favicon
 import dev.voidapp.ui.components.ReorderGrid
+import dev.voidapp.ui.proto.rememberMotion
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
@@ -214,8 +217,9 @@ private fun PreviewBox(
                 )
             },
     ) {
-        // The active card is the live page, drawn above it.
-        if (!active) content()
+        // The live page glides in above the active card and then hands over to it, so the
+        // current tab never stays behind as a floating layer.
+        content()
     }
 }
 
@@ -260,12 +264,19 @@ private fun TabCard(
 ) {
     val colors = MaterialTheme.colorScheme
     val active = state.activeTabId == tab.id
+    val motion = rememberMotion()
+    val appear by animateFloatAsState(if (state.tabGridOpen) 1f else 0.88f, motion.pop(), label = "cardIn")
     val blank = tab.url.isBlank()
     val title = if (blank) "Homepage" else tab.title.ifBlank { tab.url.substringAfter("://", tab.url).substringBefore("/") }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .graphicsLayer {
+                val scale = if (active) 1f else appear
+                scaleX = scale
+                scaleY = scale
+            }
             .clickable(enabled = state.tabGridOpen && !lifted) { state.selectTab(tab.id) },
     ) {
         CardHeader(

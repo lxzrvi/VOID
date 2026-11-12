@@ -59,6 +59,29 @@ class UiPrefs(context: Context) {
     var uiScale by float("ui_scale", 1f)
     var matchStatusBar by bool("match_status", true)
 
+    /** 0 = pages stay below the status bar (fixed headers never go under it), 1 = the band scrolls away with the page. */
+    var statusMode by int("status_mode", 0)
+
+    // ---- motion and blur --------------------------------------------------------
+    /** 0 = bouncy, 1 = smooth, 2 = off. */
+    var animStyle by int("anim_style", 0)
+    var animSpeed by float("anim_speed", 1f)
+    var blurEnabled by bool("blur_enabled", true)
+    var blurRadius by float("blur_radius", 22f)
+    var blurNoise by float("blur_noise", 0.04f)
+
+    // ---- gestures ------------------------------------------------------------------
+    var tabSwipe by bool("tab_swipe", true)
+    var historySwipe by bool("history_swipe", true)
+    var pullToTabs by bool("pull_tabs", true)
+    var swipeStep by float("swipe_step", 56f)
+    var pullThreshold by float("pull_threshold", 0.3f)
+    var haptics by bool("haptics", true)
+
+    // ---- tabs ----------------------------------------------------------------------
+    /** Back on a page with no history closes a tab that was opened from another tab. */
+    var backClosesOpener by bool("back_closes_opener", true)
+
     // ---- home page ------------------------------------------------------------
     var showBrand by bool("show_brand", true)
     var brandText by string("brand_text", "VOID")
@@ -117,6 +140,22 @@ class UiPrefs(context: Context) {
         barHeight = 51f
         uiScale = 1f
         matchStatusBar = true
+        statusMode = 0
+        animStyle = 0
+        animSpeed = 1f
+        blurEnabled = true
+        blurRadius = 22f
+        blurNoise = 0.04f
+    }
+
+    fun resetGestures() {
+        tabSwipe = true
+        historySwipe = true
+        pullToTabs = true
+        swipeStep = 56f
+        pullThreshold = 0.3f
+        haptics = true
+        backClosesOpener = true
     }
 
     fun resetHomePage() {

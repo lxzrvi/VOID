@@ -25,6 +25,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,6 +55,7 @@ import androidx.compose.ui.util.lerp
 import dev.voidapp.ui.VoidAppState
 import dev.voidapp.ui.components.ReorderGrid
 import dev.voidapp.ui.theme.Poppins
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /** Scale / letter-spacing / opacity of the VOID wordmark tap, from the prototype's keyframes. */
@@ -86,6 +88,7 @@ fun ProtoHome(state: VoidAppState, modifier: Modifier = Modifier) {
     val density = LocalDensity.current
     val focusManager = LocalFocusManager.current
     val scope = rememberCoroutineScope()
+    val motion = rememberMotion()
     val focusRequester = remember { FocusRequester() }
 
     var searchFocus by remember { mutableStateOf(false) }
@@ -125,16 +128,26 @@ fun ProtoHome(state: VoidAppState, modifier: Modifier = Modifier) {
                 gap = gap,
                 stretchLastRow = false,
                 onMove = { from, to -> state.moveSite(from, to) },
-            ) { site, _, lifted ->
+            ) { site, index, lifted ->
                 val interaction = remember { MutableInteractionSource() }
                 val pressed by interaction.collectIsPressedAsState()
-                val scale by animateFloatAsState(if (pressed) 0.86f else 1f, tween(200), label = "press")
+                val scale by animateFloatAsState(if (pressed) 0.86f else 1f, motion.pop(), label = "press")
+                // The boxes pop in one after another.
+                val appear = remember { Animatable(if (motion.instant) 1f else 0f) }
+                LaunchedEffect(Unit) {
+                    if (!motion.instant) {
+                        delay(index * 40L)
+                        appear.animateTo(1f, motion.pop())
+                    }
+                }
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .graphicsLayer {
-                            scaleX = scale
-                            scaleY = scale
+                            val pop = scale * (0.55f + 0.45f * appear.value)
+                            scaleX = pop
+                            scaleY = pop
+                            alpha = appear.value.coerceIn(0f, 1f)
                         }
                         .clip(RoundedCornerShape(radius))
                         .background(fill)

@@ -11,6 +11,7 @@ import android.webkit.CookieManager
 import android.webkit.MimeTypeMap
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -87,6 +88,23 @@ class DownloadCenter(
 
     val activeCount: Int get() = items.count { it.status == DownloadStatus.Running }
 
+    /** Bumped whenever a download completes (the bottom circle shows a tick). */
+    var tick by mutableIntStateOf(0)
+        private set
+
+    /** Progress of everything running right now, 0..1 (0 when sizes are unknown). */
+    val overall: Float
+        get() {
+            val running = items.filter { it.status == DownloadStatus.Running }
+            val total = running.sumOf { it.total.coerceAtLeast(0L) }
+            if (total <= 0L) return 0f
+            return (running.sumOf { it.done }.toFloat() / total).coerceIn(0f, 1f)
+        }
+
+    /** True while something runs whose size is not known (the ring spins instead of filling). */
+    val indeterminate: Boolean
+        get() = items.any { it.status == DownloadStatus.Running && it.total <= 0L }
+
     fun displayPath(folder: String): String = "${Environment.DIRECTORY_DOWNLOADS}/$folder"
 
     // ---- control ------------------------------------------------------------------
@@ -123,7 +141,7 @@ class DownloadCenter(
             when (outcome) {
                 Outcome.Done -> {
                     item.status = DownloadStatus.Completed
-                    notify("Downloaded ${item.fileName}")
+                    tick++
                 }
                 Outcome.Failed -> item.status = DownloadStatus.Failed
                 Outcome.Stopped -> Unit // pause / cancel already set the status
@@ -143,6 +161,21 @@ class DownloadCenter(
 
     fun resume(item: DownloadItem) {
         if (item.status == DownloadStatus.Paused || item.status == DownloadStatus.Failed) start(item)
+    }
+
+    /** Fetches the same file again as a new download. */
+    fun redownload(item: DownloadItem) {
+        enqueue(
+            DownloadRequest(
+                url = item.url,
+                userAgent = item.userAgent,
+                mime = item.mime,
+                length = item.total,
+                referer = item.referer,
+                fileName = item.fileName,
+            ),
+            item.folder,
+        )
     }
 
     fun retry(item: DownloadItem) {
@@ -184,6 +217,65 @@ class DownloadCenter(
     fun clearFinished() {
         items.removeAll { it.status == DownloadStatus.Completed || it.status == DownloadStatus.Canceled }
         save()
+    }
+
+    /** Renames the file (also on disk once it is finished). */
+    fun rename(item: DownloadItem, newName: String): Boolean {
+        val bad = "\u005C/:*?\u0022<>|"
+        val clean = newName.trim().map { ch -> if (ch in bad) '_' else ch }.joinToString("")
+        if (clean.isBlank()) return false
+        if (item.status == DownloadStatus.Completed) {
+            val uri = item.resultUri?.let { Uri.parse(it) } ?: return false
+            val ok = runCatching {
+                if (uri.scheme == "content") {
+                    val values = ContentValues().apply { put(MediaStore.MediaColumns.DISPLAY_NAME, clean) }
+                    context.contentResolver.update(uri, values, null, null) > 0
+                } else {
+                    val file = File(uri.path.orEmpty())
+                    val target = File(file.parentFile, clean)
+                    if (file.renameTo(target)) {
+                        item.resultUri = Uri.fromFile(target).toString()
+                        true
+                    } else {
+                        false
+                    }
+                }
+            }.getOrDefault(false)
+            if (!ok) return false
+        }
+        item.fileName = clean
+        save()
+        return true
+    }
+
+    fun share(item: DownloadItem) {
+        val uri = item.resultUri?.let { Uri.parse(it) } ?: return
+        val type = item.mime ?: mimeOf(item.fileName)
+        runCatching {
+            context.startActivity(
+                Intent.createChooser(
+                    Intent(Intent.ACTION_SEND).setType(type)
+                        .putExtra(Intent.EXTRA_STREAM, uri)
+                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION),
+                    item.fileName,
+                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        }.onFailure { notify("Could not share this file") }
+    }
+
+    /** Always asks which app to use. */
+    fun openWith(item: DownloadItem) {
+        val uri = item.resultUri?.let { Uri.parse(it) } ?: return
+        val type = item.mime ?: mimeOf(item.fileName)
+        runCatching {
+            context.startActivity(
+                Intent.createChooser(
+                    Intent(Intent.ACTION_VIEW).setDataAndType(uri, type)
+                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION),
+                    "Open with",
+                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        }.onFailure { notify("No app can open this file") }
     }
 
     fun open(item: DownloadItem) {

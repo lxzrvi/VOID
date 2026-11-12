@@ -115,8 +115,13 @@ fun BrowserScreen(
     val insetPx = WindowInsets.statusBars.getTop(density)
     state.statusInsetPx = insetPx
     val insetDp = with(density) { insetPx.toDp() }
-    LaunchedEffect(insetPx, state.pageBottomInsetDp) {
-        state.applyInsetToPages(insetPx / density.density, state.pageBottomInsetDp)
+    // Mode 0: the page sits BELOW the status bar, so no header of any site can slide
+    // under it. Mode 1: the page starts under the bar and the band scrolls away.
+    val reserved = state.ui.statusMode == 0
+    val topCss = if (reserved) 0f else insetPx / density.density
+    state.pageTopInsetDp = topCss
+    LaunchedEffect(topCss, state.pageBottomInsetDp) {
+        state.applyInsetToPages(topCss, state.pageBottomInsetDp)
     }
 
     val webView = remember(tabId, runtime.generation) {
@@ -192,7 +197,9 @@ fun BrowserScreen(
                 }
             },
             onRelease = { frame -> frame.removeAllViews() },
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = if (reserved) insetDp else 0.dp),
         )
 
         // Status bar band: wears the colour of the page's top and scrolls away WITH the
@@ -208,7 +215,7 @@ fun BrowserScreen(
                 .fillMaxWidth()
                 .height(insetDp)
                 .graphicsLayer {
-                    translationY = -minOf(state.pageScrollY.toFloat(), insetPx.toFloat())
+                    translationY = if (reserved) 0f else -minOf(state.pageScrollY.toFloat(), insetPx.toFloat())
                 }
                 .background(bandColor),
         )

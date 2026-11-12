@@ -161,7 +161,7 @@ fun createTabWebView(context: Context, state: VoidAppState, tabId: Long): WebVie
     val density = context.resources.displayMetrics.density
     val startTab = state.tabs.firstOrNull { it.id == tabId }
 
-    fun insetCss(): Float = state.statusInsetPx / density
+    fun insetCss(): Float = state.pageTopInsetDp
 
     return WebView(context).apply {
         layoutParams = ViewGroup.LayoutParams(

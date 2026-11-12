@@ -1,6 +1,24 @@
 package dev.voidapp.ui.proto
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Spring
@@ -104,6 +122,9 @@ import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.max
 
+/** Both collapsed circles (search and VOID) share this exact fill. */
+private const val CircleAlpha = 0.86f
+
 /**
  * Everything under the page:
  *
@@ -122,12 +143,13 @@ fun ProtoControls(state: VoidAppState, modifier: Modifier = Modifier) {
     val density = LocalDensity.current
     val haptics = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
+    val motion = rememberMotion()
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val w = maxWidth
         val h = maxHeight
         val maxHpx = with(density) { h.toPx() }
-        val stepPx = with(density) { 56.dp.toPx() }
+        val stepPx = with(density) { state.ui.swipeStep.dp.toPx() }
 
         val navBottom = with(density) { WindowInsets.navigationBars.getBottom(density).toDp() }
         val imeBottom = with(density) { WindowInsets.ime.getBottom(density).toDp() }
@@ -174,14 +196,14 @@ fun ProtoControls(state: VoidAppState, modifier: Modifier = Modifier) {
             open -> available / 1.88f
             else -> navClosed
         }
-        val navWidth by animateDpAsState(navWidthTarget, tween(350), label = "navWidth")
+        val navWidth by animateDpAsState(navWidthTarget, motion.soft(), label = "navWidth")
         val navHeight by animateDpAsState(
             targetValue = when {
                 navCollapsed -> circleSize
                 open -> openHeight
                 else -> pillHeight
             },
-            animationSpec = tween(400, easing = CubicBezierEasing(0.2f, 0.8f, 0.2f, 1f)),
+            animationSpec = motion.soft(),
             label = "navHeight",
         )
         val navRadius by animateDpAsState(
@@ -190,29 +212,35 @@ fun ProtoControls(state: VoidAppState, modifier: Modifier = Modifier) {
                 open -> minOf(23.dp, c.barRadius)
                 else -> closedRadius
             },
-            animationSpec = tween(350),
+            animationSpec = motion.soft(),
             label = "navRadius",
         )
-        val openFraction by animateFloatAsState(if (open) 1f else 0f, tween(300), label = "open")
+        val openFraction by animateFloatAsState(if (open) 1f else 0f, motion.soft(), label = "open")
 
         val searchWidth by animateDpAsState(
             targetValue = if (searchCollapsed) circleSize else available - navWidthTarget,
-            animationSpec = tween(350),
+            animationSpec = motion.soft(),
             label = "searchWidth",
         )
-        val searchHeight by animateDpAsState(if (searchCollapsed) circleSize else pillHeight, tween(350), label = "searchHeight")
+        val searchHeight by animateDpAsState(if (searchCollapsed) circleSize else pillHeight, motion.soft(), label = "searchHeight")
         val searchRadius by animateDpAsState(
             targetValue = if (searchCollapsed) circleSize / 2 else closedRadius,
-            animationSpec = tween(350),
+            animationSpec = motion.soft(),
             label = "searchRadius",
         )
-        val lift by animateDpAsState(if (searchCollapsed) 2.dp else 0.dp, tween(300), label = "lift")
+        val lift by animateDpAsState(if (searchCollapsed) 2.dp else 0.dp, motion.soft(), label = "lift")
 
         // ---- gestures of the pill ----------------------------------------------------------
         var swipeX by remember { mutableFloatStateOf(0f) }
         var swipeY by remember { mutableFloatStateOf(0f) }
+        var searchSwipeX by remember { mutableFloatStateOf(0f) }
+        fun tick(type: HapticFeedbackType) {
+            if (state.ui.haptics) haptics.performHapticFeedback(type)
+        }
         val pillGestures = Modifier.navGestures(
-            enabled = !open,
+            enabled = !open && (state.ui.tabSwipe || state.ui.pullToTabs),
+            allowPull = state.ui.pullToTabs,
+            allowSlide = state.ui.tabSwipe,
             stepPx = stepPx,
             onPullStart = { state.beginTabDrag() },
             onPull = { total ->
@@ -222,12 +250,12 @@ fun ProtoControls(state: VoidAppState, modifier: Modifier = Modifier) {
             },
             onPullEnd = { velocityY ->
                 val pulled = -swipeY / (maxHpx * 0.45f)
-                val openGrid = pulled > 0.3f || (velocityY < -1400f && swipeY < -24f)
-                if (openGrid) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                val openGrid = pulled > state.ui.pullThreshold || (velocityY < -1400f && swipeY < -24f)
+                if (openGrid) tick(HapticFeedbackType.LongPress)
                 state.endTabDrag(openGrid)
                 val from = swipeY
                 scope.launch {
-                    animate(0f, 1f, animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMedium)) { t, _ ->
+                    animate(0f, 1f, animationSpec = motion.soft()) { t, _ ->
                         swipeY = from * (1f - t)
                     }
                     swipeY = 0f
@@ -235,15 +263,39 @@ fun ProtoControls(state: VoidAppState, modifier: Modifier = Modifier) {
             },
             onSlide = { offset -> swipeX = (offset * 0.6f).coerceIn(-stepPx, stepPx) },
             onSlideStep = { direction ->
-                if (state.switchTabBy(direction)) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                if (state.switchTabBy(direction)) tick(HapticFeedbackType.TextHandleMove)
             },
             onSlideEnd = {
                 val from = swipeX
                 scope.launch {
-                    animate(0f, 1f, animationSpec = spring(dampingRatio = 0.55f, stiffness = Spring.StiffnessMedium)) { t, _ ->
+                    animate(0f, 1f, animationSpec = motion.pop()) { t, _ ->
                         swipeX = from * (1f - t)
                     }
                     swipeX = 0f
+                }
+            },
+        )
+
+        // The search bar: swipe right = page back, swipe left = page forward (again after a back).
+        val searchGestures = Modifier.navGestures(
+            enabled = state.ui.historySwipe && !state.bottomFocus,
+            allowPull = false,
+            allowSlide = true,
+            stepPx = stepPx,
+            onPullStart = {},
+            onPull = {},
+            onPullEnd = {},
+            onSlide = { offset -> searchSwipeX = (offset * 0.6f).coerceIn(-stepPx, stepPx) },
+            onSlideStep = { direction ->
+                if (state.historyStep(direction)) tick(HapticFeedbackType.TextHandleMove)
+            },
+            onSlideEnd = {
+                val from = searchSwipeX
+                scope.launch {
+                    animate(0f, 1f, animationSpec = motion.pop()) { t, _ ->
+                        searchSwipeX = from * (1f - t)
+                    }
+                    searchSwipeX = 0f
                 }
             },
         )
@@ -263,8 +315,7 @@ fun ProtoControls(state: VoidAppState, modifier: Modifier = Modifier) {
             ) {
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(c.tooltip)
+                        .frosted(RoundedCornerShape(14.dp), c.tooltip.copy(alpha = 0.82f))
                         .padding(horizontal = 12.dp, vertical = 7.dp),
                 ) {
                     Text(
@@ -319,7 +370,9 @@ fun ProtoControls(state: VoidAppState, modifier: Modifier = Modifier) {
                         modifier = Modifier
                             .padding(bottom = lift)
                             .fillMaxWidth()
-                            .height(searchHeight),
+                            .height(searchHeight)
+                            .graphicsLayer { translationX = searchSwipeX }
+                            .then(searchGestures),
                     )
                 }
                 Spacer(Modifier.width(gap))
@@ -355,6 +408,8 @@ fun ProtoControls(state: VoidAppState, modifier: Modifier = Modifier) {
  */
 private fun Modifier.navGestures(
     enabled: Boolean,
+    allowPull: Boolean,
+    allowSlide: Boolean,
     stepPx: Float,
     onPullStart: () -> Unit,
     onPull: (Float) -> Unit,
@@ -365,7 +420,7 @@ private fun Modifier.navGestures(
 ): Modifier = if (!enabled) {
     this
 } else {
-    pointerInput(stepPx) {
+    pointerInput(stepPx, allowPull, allowSlide) {
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
             val slop = viewConfiguration.touchSlop
@@ -378,7 +433,11 @@ private fun Modifier.navGestures(
                 if (change.isConsumed || !change.pressed) return@awaitEachGesture
                 val d = change.position - down.position
                 if (d.getDistance() > slop) {
-                    mode = if (abs(d.x) > abs(d.y)) 2 else if (d.y < 0f) 1 else 3
+                    mode = when {
+                        abs(d.x) > abs(d.y) -> if (allowSlide) 2 else 3
+                        d.y < 0f -> if (allowPull) 1 else 3
+                        else -> 3
+                    }
                 }
             }
 
@@ -483,11 +542,16 @@ private fun SearchPill(
         }
     }
 
+    val motion = rememberMotion()
+    val tint by animateColorAsState(
+        targetValue = if (collapsed) c.circle.copy(alpha = CircleAlpha) else c.soft.copy(alpha = c.barAlpha),
+        animationSpec = motion.soft(),
+        label = "searchTint",
+    )
     Box(
         modifier = modifier
-            .clip(shape)
-            .background(c.soft.copy(alpha = c.barAlpha))
-            .border(1.dp, c.line, shape),
+            .frosted(shape, tint)
+            .border(1.dp, if (collapsed) Color.Transparent else c.line, shape),
         contentAlignment = Alignment.CenterStart,
     ) {
         if (collapsed) {
@@ -503,7 +567,7 @@ private fun SearchPill(
                     },
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(ProtoIcons.get("pillsearch"), "Search", tint = c.navIcon, modifier = Modifier.size(24.dp))
+                Icon(ProtoIcons.get("pillsearch"), "Search", tint = Color.White, modifier = Modifier.size(24.dp))
             }
         } else {
             Row(
@@ -566,17 +630,21 @@ private fun NavPill(
     modifier: Modifier = Modifier,
 ) {
     val shape = RoundedCornerShape(radius)
+    val motion = rememberMotion()
     val fill by animateColorAsState(
-        if (collapsed) c.circle else c.soft.copy(alpha = c.barAlpha),
-        tween(300),
+        if (collapsed) c.circle.copy(alpha = CircleAlpha) else c.soft.copy(alpha = c.barAlpha),
+        motion.soft(),
         label = "navFill",
     )
-    val borderColor by animateColorAsState(if (collapsed) c.circle else c.line, tween(300), label = "navBorder")
+    val borderColor by animateColorAsState(
+        if (collapsed) Color.Transparent else c.line,
+        motion.soft(),
+        label = "navBorder",
+    )
 
     Column(
         modifier = modifier
-            .clip(shape)
-            .background(fill)
+            .frosted(shape, fill)
             .border(1.dp, borderColor, shape),
         verticalArrangement = Arrangement.Bottom,
     ) {
@@ -591,7 +659,9 @@ private fun NavPill(
                     ) { onExpand() },
                 contentAlignment = Alignment.Center,
             ) {
-                AppMark(modifier = Modifier.size(26.dp), color = Color.White)
+                DownloadRingCircle(state, 46.dp, Color.White) {
+                    AppMark(modifier = Modifier.size(26.dp), color = Color.White)
+                }
             }
             return@Column
         }
@@ -625,7 +695,7 @@ private fun NavPill(
                 state.goHome()
                 state.closeMenu()
             }
-            MenuButton(c = c, open = open, onClick = { state.menuOpen = !state.menuOpen })
+            MenuButton(state = state, c = c, open = open, onClick = { state.menuOpen = !state.menuOpen })
         }
     }
 }
@@ -648,8 +718,9 @@ private fun NavButton(icon: String, c: ProtoColors, onClick: () -> Unit) {
 
 /** The hamburger circle. Open: it turns into an x and rotates a quarter turn. */
 @Composable
-private fun MenuButton(c: ProtoColors, open: Boolean, onClick: () -> Unit) {
-    val rotation by animateFloatAsState(if (open) 90f else 0f, tween(300), label = "rotate")
+private fun MenuButton(state: VoidAppState, c: ProtoColors, open: Boolean, onClick: () -> Unit) {
+    val motion = rememberMotion()
+    val rotation by animateFloatAsState(if (open) 90f else 0f, motion.pop(), label = "rotate")
     Box(
         modifier = Modifier
             .size(34.dp)
@@ -662,12 +733,110 @@ private fun MenuButton(c: ProtoColors, open: Boolean, onClick: () -> Unit) {
             ),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(
-            imageVector = ProtoIcons.get(if (open) "close" else "menu"),
-            contentDescription = "Browser menu",
-            tint = c.navIcon,
-            modifier = Modifier.size(21.dp).rotate(rotation),
-        )
+        DownloadRingCircle(state, 34.dp, c.accent) {
+            Icon(
+                imageVector = ProtoIcons.get(if (open) "close" else "menu"),
+                contentDescription = "Browser menu",
+                tint = c.navIcon,
+                modifier = Modifier.size(21.dp).rotate(rotation),
+            )
+        }
+    }
+}
+
+/**
+ * A circle whose border becomes the download progress ring. While files download the
+ * ring fills with their combined progress (or spins when a size is unknown); when one
+ * finishes the icon morphs into a tick and, after a moment, back into [content]. A
+ * file icon that lands here (see the flying icon) makes the circle pulse.
+ */
+@Composable
+private fun DownloadRingCircle(
+    state: VoidAppState,
+    diameter: Dp,
+    ringColor: Color,
+    content: @Composable () -> Unit,
+) {
+    val motion = rememberMotion()
+    val center = state.downloads
+
+    var showTick by remember { mutableStateOf(false) }
+    var lastTick by remember { mutableIntStateOf(center.tick) }
+    LaunchedEffect(center.tick) {
+        if (center.tick != lastTick) {
+            lastTick = center.tick
+            showTick = true
+            delay(1600)
+            showTick = false
+        }
+    }
+
+    val running = center.activeCount > 0
+    val progress by animateFloatAsState(if (showTick) 1f else center.overall, motion.soft(), label = "ring")
+    val ringAlpha by animateFloatAsState(if (running || showTick) 1f else 0f, motion.pop(), label = "ringAlpha")
+    val spin = rememberInfiniteTransition(label = "spin")
+    val angle by spin.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(1100, easing = LinearEasing)),
+        label = "angle",
+    )
+    val pulse = remember { Animatable(1f) }
+    LaunchedEffect(state.downloadPulse) {
+        if (state.downloadPulse > 0) {
+            pulse.snapTo(1.28f)
+            pulse.animateTo(1f, motion.pop())
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .size(diameter)
+            .graphicsLayer {
+                scaleX = pulse.value
+                scaleY = pulse.value
+            }
+            .onGloballyPositioned { coords ->
+                val p = coords.positionInWindow()
+                state.downloadTarget = Offset(p.x + coords.size.width / 2f, p.y + coords.size.height / 2f)
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(modifier = Modifier.matchParentSize()) {
+            if (ringAlpha > 0.01f) {
+                val stroke = 2.5.dp.toPx()
+                val box = Size(this.size.width - stroke, this.size.height - stroke)
+                val spinning = center.indeterminate && !showTick
+                drawCircle(
+                    color = ringColor.copy(alpha = 0.22f * ringAlpha),
+                    radius = box.width / 2f,
+                    style = Stroke(width = stroke),
+                )
+                drawArc(
+                    color = ringColor.copy(alpha = ringAlpha),
+                    startAngle = if (spinning) angle - 90f else -90f,
+                    sweepAngle = if (spinning) 100f else 360f * progress,
+                    useCenter = false,
+                    topLeft = Offset(stroke / 2f, stroke / 2f),
+                    size = box,
+                    style = Stroke(width = stroke, cap = StrokeCap.Round),
+                )
+            }
+        }
+        AnimatedContent(
+            targetState = showTick,
+            transitionSpec = {
+                (scaleIn(motion.pop(), initialScale = 0.3f) + fadeIn(tween(160))) togetherWith
+                    (scaleOut(motion.pop(), targetScale = 0.3f) + fadeOut(tween(120)))
+            },
+            label = "ringIcon",
+        ) { done ->
+            if (done) {
+                Icon(Icons.Filled.Check, "Done", tint = ringColor, modifier = Modifier.size(diameter * 0.55f))
+            } else {
+                content()
+            }
+        }
     }
 }
 
@@ -680,8 +849,7 @@ private fun TabsBox(state: VoidAppState, c: ProtoColors, modifier: Modifier = Mo
     val shape = RoundedCornerShape(17.dp)
     Column(
         modifier = modifier
-            .clip(shape)
-            .background(c.boxFill)
+            .frosted(shape, c.boxFill.copy(alpha = 0.8f))
             .border(1.dp, c.line, shape)
             .padding(9.dp),
     ) {
@@ -877,7 +1045,7 @@ private fun ToolsContent(state: VoidAppState, c: ProtoColors, modifier: Modifier
                 Row(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalAlignment = Alignment.CenterVertically) {
                     for (index in 0 until pageCount) {
                         val active = pager.currentPage == index
-                        val dotWidth by animateDpAsState(if (active) 16.dp else 6.dp, tween(250), label = "dot")
+                        val dotWidth by animateDpAsState(if (active) 16.dp else 6.dp, rememberMotion().pop(), label = "dot")
                         Box(
                             modifier = Modifier
                                 .width(dotWidth)
