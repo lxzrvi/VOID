@@ -88,6 +88,18 @@ class UiPrefs(context: Context) {
     var brandSize by float("brand_size", 1f)
     var brandColor by color("brand_color")
     var homeBg by color("home_bg")
+
+    /** The red glow at the top of the Homepage. */
+    var homeGradient by bool("home_gradient", true)
+    var gradStart by color("grad_start")
+    var gradEnd by color("grad_end")
+
+    /** 0 = down from the top, 1 = up from the bottom, 2 = diagonal, 3 = glow from the top centre. */
+    var gradStyle by int("grad_style", 0)
+
+    /** How far the gradient reaches, % of the screen height. */
+    var gradHeight by float("grad_height", 70f)
+    var gradStrength by float("grad_strength", 1f)
     var shortcutsTop by float("shortcuts_top", 17f)
     var brandTop by float("brand_top", 31f)
     var searchTop by float("search_top", 50f)
@@ -164,6 +176,12 @@ class UiPrefs(context: Context) {
         brandSize = 1f
         brandColor = null
         homeBg = null
+        homeGradient = true
+        gradStart = null
+        gradEnd = null
+        gradStyle = 0
+        gradHeight = 70f
+        gradStrength = 1f
         shortcutsTop = 17f
         brandTop = 31f
         searchTop = 50f

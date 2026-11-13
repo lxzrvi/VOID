@@ -108,6 +108,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.coerceAtLeast
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
@@ -215,7 +216,9 @@ fun ProtoControls(state: VoidAppState, modifier: Modifier = Modifier) {
             animationSpec = motion.soft(),
             label = "navRadius",
         )
-        val openFraction by animateFloatAsState(if (open) 1f else 0f, motion.soft(), label = "open")
+        // A bouncy spring overshoots below zero when closing; sizes may wobble, paddings must not.
+        val openRaw by animateFloatAsState(if (open) 1f else 0f, motion.soft(), label = "open")
+        val openFraction = openRaw.coerceIn(0f, 1f)
 
         val searchWidth by animateDpAsState(
             targetValue = if (searchCollapsed) circleSize else available - navWidthTarget,
@@ -368,7 +371,7 @@ fun ProtoControls(state: VoidAppState, modifier: Modifier = Modifier) {
                         radius = searchRadius,
                         onExpand = { searchForced = true },
                         modifier = Modifier
-                            .padding(bottom = lift)
+                            .padding(bottom = lift.coerceAtLeast(0.dp))
                             .fillMaxWidth()
                             .height(searchHeight)
                             .graphicsLayer { translationX = searchSwipeX }
@@ -385,7 +388,7 @@ fun ProtoControls(state: VoidAppState, modifier: Modifier = Modifier) {
                     radius = navRadius,
                     onExpand = { navForced = true },
                     modifier = Modifier
-                        .padding(bottom = lift)
+                        .padding(bottom = lift.coerceAtLeast(0.dp))
                         .width(navWidth)
                         .height(navHeight)
                         .graphicsLayer {
@@ -685,7 +688,7 @@ private fun NavPill(
                 .fillMaxWidth()
                 .height(rowHeight)
                 .padding(horizontal = 8.dp)
-                .padding(bottom = (5f * openFraction).dp),
+                .padding(bottom = (5f * openFraction).coerceAtLeast(0f).dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceAround,
         ) {

@@ -1,6 +1,11 @@
 package dev.voidapp.ui.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -81,8 +86,23 @@ internal fun HomePageSettings(state: VoidAppState, c: ProtoColors) {
         TextRow(c, "Placeholder text", ui.searchHint, "Search or enter address") { ui.searchHint = it }
     }
 
-    Section(c, "Background", initiallyOpen = false) {
-        ColorRow(c, "Homepage colour", ui.homeBg) { ui.homeBg = it }
+    Section(c, "Background", "Red gradient and page colour") {
+        SwitchRow(c, "Gradient on the Homepage", ui.homeGradient) { ui.homeGradient = it }
+        GradientPresets(c, ui.gradStart ?: dev.voidapp.ui.proto.BrandRed, ui.homeGradient) {
+            ui.gradStart = it
+            ui.gradEnd = null
+            ui.homeGradient = true
+        }
+        ChoiceRow(c, listOf("Down", "Up", "Diagonal", "Glow"), ui.gradStyle) { ui.gradStyle = it }
+        SliderRow(c, "Reach", "${ui.gradHeight.roundToInt()}%", ui.gradHeight, 15f..100f, enabled = ui.homeGradient) {
+            ui.gradHeight = it
+        }
+        SliderRow(c, "Strength", "${(ui.gradStrength * 100).roundToInt()}%", ui.gradStrength, 0.15f..1f, enabled = ui.homeGradient) {
+            ui.gradStrength = it
+        }
+        ColorRow(c, "Gradient colour (default: VOID red)", ui.gradStart) { ui.gradStart = it }
+        ColorRow(c, "Fades into (default: page colour)", ui.gradEnd) { ui.gradEnd = it }
+        ColorRow(c, "Page colour", ui.homeBg) { ui.homeBg = it }
     }
 
     SectionTitle(c, "ADD TO HOME")
@@ -100,6 +120,36 @@ internal fun HomePageSettings(state: VoidAppState, c: ProtoColors) {
         state.updateBoxRadius(7f)
         state.updateBoxColor(null)
         state.updateBoxTextColor(null)
+    }
+}
+
+private val GradientColors = listOf(
+    Color(0xFFC10520), Color(0xFFFF6A3D), Color(0xFFFB8C00), Color(0xFF1B8A5A),
+    Color(0xFF1E88E5), Color(0xFF7E57C2), Color(0xFFEC407A), Color(0xFF2B2B30),
+)
+
+/** One tap sets the gradient colour: each swatch shows the colour fading into the page. */
+@Composable
+private fun GradientPresets(c: ProtoColors, selected: Color, enabled: Boolean, onPick: (Color) -> Unit) {
+    Column(modifier = Modifier.padding(vertical = 6.dp)) {
+        Text("Presets", color = c.ink, fontFamily = Poppins, fontSize = 13.sp)
+        Spacer(Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            GradientColors.forEach { color ->
+                val on = enabled && color == selected
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(Brush.verticalGradient(listOf(color, c.page)))
+                        .border(if (on) 2.dp else 1.dp, if (on) c.ink else c.line, CircleShape)
+                        .clickable { onPick(color) },
+                )
+            }
+        }
     }
 }
 

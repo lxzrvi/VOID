@@ -232,3 +232,16 @@ The main page and all behaviour follow the HTML prototype:
   and back.
 * **Settings:** every page is made of sections that fold open with a spring; new pages for
   Motion & blur and Gestures.
+
+
+---
+
+## 0.8.1 - voidupdate5
+
+* **Crash fix:** a bouncy spring overshoots below zero when it settles, and two paddings in
+  the bottom bar (the lift of the circles, the gap under the nav icons) were fed straight
+  from such springs - "Padding must be non-negative". Paddings are now clamped; sizes may
+  still wobble.
+* **Homepage gradient:** the VOID-red glow is back at the top of the Homepage. Settings >
+  Home page > Background: on/off, presets, direction (down / up / diagonal / glow), reach,
+  strength, gradient colour, fade-to colour and page colour.

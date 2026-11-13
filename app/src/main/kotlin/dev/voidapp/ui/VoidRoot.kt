@@ -134,7 +134,15 @@ fun VoidRoot() {
         controller.isAppearanceLightStatusBars = when {
             gridVisible || state.libraryOpen || state.settingsOpen || state.downloadsOpen -> themeLight
             state.browserOpen && state.ui.matchStatusBar -> pageColor?.let { it.luminance() > 0.5f } ?: themeLight
-            else -> themeLight
+            else -> {
+                // Over the Homepage glow: white icons on a dark colour, dark icons on a light one.
+                val ui = state.ui
+                if (ui.homeGradient && ui.gradHeight >= 6f) {
+                    (ui.gradStart ?: dev.voidapp.ui.proto.BrandRed).copy(alpha = 1f).luminance() > 0.5f
+                } else {
+                    themeLight
+                }
+            }
         }
         controller.isAppearanceLightNavigationBars = themeLight
     }

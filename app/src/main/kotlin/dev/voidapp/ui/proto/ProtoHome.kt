@@ -33,6 +33,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -57,6 +61,9 @@ import dev.voidapp.ui.components.ReorderGrid
 import dev.voidapp.ui.theme.Poppins
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+/** The brand red (Homepage gradient default). */
+val BrandRed = Color(0xFFC10520)
 
 /** Scale / letter-spacing / opacity of the VOID wordmark tap, from the prototype's keyframes. */
 private fun brandFrame(t: Float): FloatArray {
@@ -96,7 +103,44 @@ fun ProtoHome(state: VoidAppState, modifier: Modifier = Modifier) {
 
     val brand = remember { Animatable(0f) }
 
-    BoxWithConstraints(modifier = modifier.fillMaxSize().background(c.homeBg)) {
+    val ui = state.ui
+    val gradStart = ui.gradStart ?: BrandRed
+    val gradEnd = ui.gradEnd ?: c.homeBg
+
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxSize()
+            .background(c.homeBg)
+            .drawBehind {
+                if (ui.homeGradient) {
+                    val reach = (size.height * ui.gradHeight / 100f).coerceAtLeast(1f)
+                    val top = gradStart.copy(alpha = ui.gradStrength.coerceIn(0f, 1f))
+                    val brush = when (ui.gradStyle) {
+                        1 -> Brush.verticalGradient(
+                            colors = listOf(gradEnd, top),
+                            startY = size.height - reach,
+                            endY = size.height,
+                        )
+                        2 -> Brush.linearGradient(
+                            colors = listOf(top, gradEnd),
+                            start = Offset(0f, 0f),
+                            end = Offset(size.width, reach),
+                        )
+                        3 -> Brush.radialGradient(
+                            colors = listOf(top, gradEnd),
+                            center = Offset(size.width / 2f, 0f),
+                            radius = reach,
+                        )
+                        else -> Brush.verticalGradient(
+                            colors = listOf(top, gradEnd),
+                            startY = 0f,
+                            endY = reach,
+                        )
+                    }
+                    drawRect(brush = brush)
+                }
+            },
+    ) {
         val w = maxWidth
         val h = maxHeight
         val dim by animateFloatAsState(if (searchFocus) 0.3f else 1f, tween(300), label = "dim")
